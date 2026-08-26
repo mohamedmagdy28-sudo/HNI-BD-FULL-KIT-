@@ -1,0 +1,117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Brand typefaces, served from the design-system files in public/brand/fonts.
+   Titles: Myriad Pro regular or bold only. Body: Century Gothic or Myriad Pro, never bold italic. */
+@font-face {
+  font-family: "Myriad Pro";
+  src: url("/brand/fonts/MyriadPro-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Myriad Pro";
+  src: url("/brand/fonts/MyriadPro-Bold.otf") format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Century Gothic";
+  src: url("/brand/fonts/CenturyGothic-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* HNI design tokens. Source of truth: Brand.md in https://github.com/mohamedmagdy28-sudo/hni-design-system
+   (mirrored in .claude/skills/hni-product-design/references/brand.md). Do not hard-code these values elsewhere. */
+@layer base {
+  :root {
+    /* Brand palette */
+    --hni-magenta: #91195a;
+    --hni-gold: #f1bd19;
+    --hni-black: #231f20;
+    --hni-grey-dark: #393c3c;
+    --hni-grey-mid: #999999;
+    --hni-white: #ffffff;
+    --hni-violet: #3a37c4;
+    --hni-majorelle: #5b58e0;
+    --hni-emerald: #0c6e3a;
+    --hni-apple: #28a456;
+
+    /* Surfaces and borders */
+    --surface-0: #ffffff;
+    --surface-1: #f7f7f8;
+    --surface-2: #efeff1;
+    --border-1: #e8e8ea;
+    --border-2: #d6d6da;
+
+    /* Semantic status */
+    --status-success-fg: #0c6e3a;
+    --status-success-bg: #e6f4ec;
+    --status-warning-fg: #a35400;
+    --status-warning-bg: #fff4e5;
+    --status-danger-fg: #b3261e;
+    --status-danger-bg: #fcebea;
+    --status-info-fg: #3a37c4;
+    --status-info-bg: #ecebfb;
+    --status-neutral-fg: #393c3c;
+    --status-neutral-bg: #f1f1f3;
+
+    /* shadcn variables mapped to HNI (hsl triplets) */
+    --background: 0 0% 100%;
+    --foreground: 345 3% 13%;          /* rich black */
+    --card: 0 0% 100%;
+    --card-foreground: 345 3% 13%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 345 3% 13%;
+    --primary: 328 70% 33%;            /* magenta */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 5% 97%;
+    --secondary-foreground: 180 3% 23%;
+    --muted: 240 5% 97%;
+    --muted-foreground: 180 3% 23%;
+    --accent: 240 5% 94%;
+    --accent-foreground: 345 3% 13%;
+    --destructive: 3 72% 41%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 4% 91%;
+    --input: 240 4% 85%;
+    --ring: 328 70% 33%;
+    --radius: 0.5rem;
+
+    --font-latin: "Myriad Pro", "Century Gothic", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-arabic: "Tajawal", "IBM Plex Sans Arabic", "Segoe UI", sans-serif;
+  }
+
+  * { @apply border-border; }
+
+  html { font-family: var(--font-latin); }
+  html[lang="ar"], [lang="ar"] { font-family: var(--font-arabic); }
+
+  body {
+    @apply bg-[color:var(--surface-1)] text-foreground antialiased;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  html[lang="ar"] body { font-size: 15px; line-height: 1.6; }
+
+  /* Numbers align in tables and KPI strips */
+  .tabular { font-variant-numeric: tabular-nums; }
+
+  /* Focus is never removed, only styled */
+  :focus-visible {
+    outline: 2px solid var(--hni-magenta);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
