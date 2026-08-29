@@ -112,7 +112,9 @@ Package mgr:  npm
 Dev server:   npm run dev            (http://localhost:5173)
 Build:        npm run build          (tsc -b && vite build; must pass before any commit)
 Lint:         npm run lint           (oxlint)
+Unit tests:   npm test               (vitest; calc chain, store, project types)
 E2E:          npm run test:e2e:install once, then npm run test:e2e   (Playwright, 4 viewports x EN/AR)
+Deploy:       GitHub Pages from the gh-pages branch: DEPLOY_BASE=/HNI-BD-FULL-KIT-/ npm run build, then push dist/ to gh-pages. The Actions workflow in .github/workflows/deploy.yml automates this on push to main but needs a GitHub token with workflow scope to be committed.
 State:        React state only. No global store yet; add one only with the three-question justification.
 Backend:      none yet. .env.example lists the expected variables.
 i18n:         src/lib/i18n.tsx. One dictionary, EN and AR, shell strings only so far. Language persists in localStorage key "hni.lang". Document dir/lang switch automatically. Add feature strings under a short namespace per screen.
@@ -121,7 +123,7 @@ Routing:      none yet. Navigation items are placeholders. Add a router only whe
 Direction:    use Tailwind logical utilities only (ms-, me-, ps-, pe-, start-, end-, text-start, text-end, border-s, border-e, rounded-s, rounded-e).
 ```
 
-Screens: none yet. `src/App.tsx` renders the shell with a placeholder screen; build the first real screen under `src/features/<screen>/` and swap it in. Shared UI lives in `src/components/app/`; shadcn primitives in `src/components/ui/` (do not edit primitives, wrap them).
+Screens: Pricing & Costing Calculator at `src/features/pricing/` (design: docs/designs/pricing-costing-calculator.md), rendered by `src/App.tsx`. Data persists in localStorage behind the `PricingStore` interface (Supabase swap triggers are documented in the design doc and TODOS.md). Shared UI lives in `src/components/app/`; shadcn primitives in `src/components/ui/` (do not edit primitives, wrap them).
 
 ## GBrain Configuration (configured by /setup-gbrain)
 - Mode: local-stdio

@@ -1,0 +1,118 @@
+// Domain model for the Pricing & Costing Calculator.
+// Design: docs/designs/pricing-costing-calculator.md (APPROVED, eng-cleared).
+// All money is integer whole SAR; rounded values are canonical at every derived
+// stage, so the number displayed IS the number stored and quoted.
+
+export type DiscountType = "percent" | "amount";
+
+/**
+ * Project types seed new programs with their fixed cost items. "workshop"
+ * (Stand Alone Workshop) pre-creates trainer daily rate, materials printing,
+ * air ticket, and accommodation lines; "custom" starts blank. A second real
+ * project type slots in here as one more union member plus a template.
+ */
+export type ProjectType = "workshop" | "custom";
+
+export type Discount = {
+  type: DiscountType;
+  /** percent: 0-100. amount: whole SAR. Stored exactly as the user entered it. */
+  value: number;
+};
+
+export type CostLine = {
+  id: string;
+  label: string;
+  qty: number;
+  /** Whole SAR per unit. */
+  unitRate: number;
+};
+
+export type Program = {
+  id: string;
+  name: string;
+  days: number;
+  participants: number;
+  city: string;
+  costLines: CostLine[];
+};
+
+export type ScheduleItem = {
+  id: string;
+  label: string;
+  /** Integer percent of the total incl. VAT. All items must sum to exactly 100. */
+  percent: number;
+};
+
+export type Proposal = {
+  id: string;
+  clientName: string;
+  title: string;
+  /** ISO date (yyyy-mm-dd). */
+  date: string;
+  currency: "SAR";
+  /** Controls what Add-program seeds. Proposals saved before this field exist load as "custom". */
+  projectType: ProjectType;
+  /** Canonical stored pricing field. Editing target margin writes back the implied markup. */
+  markupPct: number;
+  discount: Discount;
+  vatPct: number;
+  schedule: ScheduleItem[];
+  programs: Program[];
+  /** Set by the explicit Mark-as-sent action; a sent proposal is locked read-only. */
+  sentAt: string | null;
+};
+
+export type Settings = {
+  /** Pricing policy: margin % below which the margin block warns. */
+  marginFloorPct: number;
+  /** Drives the weekly backup reminder banner. */
+  lastExportAt: string | null;
+};
+
+export const DEFAULT_SETTINGS: Settings = {
+  marginFloorPct: 30,
+  lastExportAt: null,
+};
+
+export const VAT_DEFAULT = 15;
+export const VAT_MIN = 0;
+export const VAT_MAX = 25;
+
+export function newId(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `id-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+}
+
+export function newCostLine(label = ""): CostLine {
+  return { id: newId(), label, qty: 1, unitRate: 0 };
+}
+
+/** seedLabels pre-creates one line per fixed cost item; omitted -> one blank line. */
+export function newProgram(name: string, seedLabels?: readonly string[]): Program {
+  const costLines =
+    seedLabels && seedLabels.length > 0 ? seedLabels.map((label) => newCostLine(label)) : [newCostLine()];
+  return { id: newId(), name, days: 1, participants: 0, city: "", costLines };
+}
+
+export function newProposal(title: string, scheduleLabel: string, projectType: ProjectType = "workshop"): Proposal {
+  return {
+    id: newId(),
+    clientName: "",
+    title,
+    date: new Date().toISOString().slice(0, 10),
+    currency: "SAR",
+    projectType,
+    markupPct: 35,
+    discount: { type: "percent", value: 0 },
+    vatPct: VAT_DEFAULT,
+    schedule: [{ id: newId(), label: scheduleLabel, percent: 100 }],
+    programs: [],
+    sentAt: null,
+  };
+}
+
+/** Backfills fields added after a proposal was stored (schema drift tolerance). */
+export function normalizeProposal(p: Proposal): Proposal {
+  return { ...p, projectType: p.projectType === "workshop" ? "workshop" : "custom" };
+}

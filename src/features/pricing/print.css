@@ -1,0 +1,30 @@
+/* Client-document print rules. The visibility approach keeps layout intact
+   (display:none would reflow); the app chrome disappears, only the document
+   prints. Margins on @page replace the browser's default header/footer area. */
+@page {
+  size: A4;
+  margin: 14mm 14mm 16mm 14mm;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #client-document,
+  #client-document * {
+    visibility: visible;
+  }
+  #client-document {
+    position: absolute;
+    inset-inline-start: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    border: none;
+    box-shadow: none;
+    /* Tinted cells and the magenta rule must survive the printer's default
+       background stripping. */
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
