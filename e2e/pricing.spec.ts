@@ -233,13 +233,25 @@ test("client logo uploads, appears on the cover, and can be removed", async ({ p
   await gotoWithLanguage(page, "/", lang);
   await createProposalWithProgram(page);
 
-  // A real 1x1 PNG; the app downscales through a canvas and stores a data URL.
-  const png = Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
-    "base64",
-  );
-  await page.getByTestId("client-logo-upload").setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: png });
+  // A padded logo: 100x100 transparent frame with artwork only in the middle
+  // 60x60. The intake must trim the padding so the cover's proportion box is honest.
+  const paddedLogo = await page.evaluate(() => {
+    const c = document.createElement("canvas");
+    c.width = 100;
+    c.height = 100;
+    const ctx = c.getContext("2d")!;
+    ctx.fillStyle = "#91195A";
+    ctx.fillRect(20, 20, 60, 60);
+    return c.toDataURL("image/png").split(",")[1];
+  });
+  await page
+    .getByTestId("client-logo-upload")
+    .setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: Buffer.from(paddedLogo, "base64") });
   await expect(page.getByTestId("client-logo-preview")).toBeVisible();
+  const stored = await page
+    .getByTestId("client-logo-preview")
+    .evaluate((el) => ({ w: (el as HTMLImageElement).naturalWidth, h: (el as HTMLImageElement).naturalHeight }));
+  expect(stored).toEqual({ w: 60, h: 60 });
 
   // The cover shows the co-brand lockup; autosave keeps it across reloads.
   await page.getByTestId("open-client-view").click();
