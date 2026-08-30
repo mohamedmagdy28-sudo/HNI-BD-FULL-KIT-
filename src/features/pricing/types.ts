@@ -54,7 +54,7 @@ export type Proposal = {
   currency: "SAR";
   /** Controls what Add-program seeds. Proposals saved before this field exist load as "custom". */
   projectType: ProjectType;
-  /** What a group of cost lines is called in this proposal ("Phase", "Module", ...). Empty = localized "Program". */
+  /** What a group of cost lines is called: "phase" renders localized Phase; anything else renders localized Program. */
   sectionLabel: string;
   /** Canonical stored pricing field. Editing target margin writes back the implied markup. */
   markupPct: number;
@@ -119,10 +119,12 @@ export function newProposal(title: string, scheduleLabel: string, projectType: P
 
 /** Backfills fields added after a proposal was stored (schema drift tolerance). */
 export function normalizeProposal(p: Proposal): Proposal {
+  // Legacy free-text section labels collapse onto the dropdown's two kinds.
+  const rawLabel = typeof p.sectionLabel === "string" ? p.sectionLabel.trim().toLowerCase() : "";
   return {
     ...p,
     projectType: p.projectType === "workshop" ? "workshop" : "custom",
-    sectionLabel: typeof p.sectionLabel === "string" ? p.sectionLabel : "",
+    sectionLabel: rawLabel === "phase" || rawLabel === "المرحلة" || rawLabel === "مرحلة" ? "phase" : "",
     programs: p.programs.map((pr) => ({ ...pr, description: typeof pr.description === "string" ? pr.description : "" })),
   };
 }

@@ -297,17 +297,22 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
                     className="tabular mt-1 h-8"
                   />
                 </label>
-                <label className="w-36">
+                <div className="w-36">
                   <span className="block text-[11px] font-medium uppercase tracking-wide text-hni-grey-dark">{p.sectionLabel}</span>
-                  <Input
-                    value={current.sectionLabel}
+                  <Select
+                    value={current.sectionLabel === "phase" ? "phase" : "program"}
                     disabled={locked}
-                    placeholder={p.program}
-                    data-testid="section-label"
-                    onChange={(e) => updateCurrent({ sectionLabel: e.target.value })}
-                    className="mt-1 h-8"
-                  />
-                </label>
+                    onValueChange={(v) => updateCurrent({ sectionLabel: v === "phase" ? "phase" : "" })}
+                  >
+                    <SelectTrigger className="mt-1 h-8" aria-label={p.sectionLabel} data-testid="section-label">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="program">{p.program}</SelectItem>
+                      <SelectItem value="phase">{p.phase}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="w-48">
                   <span className="block text-[11px] font-medium uppercase tracking-wide text-hni-grey-dark">{p.projectType}</span>
                   <Select
@@ -369,7 +374,7 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
               programs={current.programs}
               locked={locked}
               seedLabels={current.projectType === "workshop" ? p.workshopLines : []}
-              groupLabel={current.sectionLabel.trim() || p.program}
+              groupLabel={current.sectionLabel === "phase" ? p.phase : p.program}
               onChange={(programs) => updateCurrent({ programs })}
             />
           </div>

@@ -135,6 +135,15 @@ describe("project types", () => {
     expect(newProgram("C2", []).costLines).toHaveLength(1);
   });
 
+  it("normalizeProposal collapses legacy free-text section labels onto the dropdown kinds", () => {
+    const base = newProposal("X", "On signature");
+    expect(normalizeProposal({ ...base, sectionLabel: "Phase" }).sectionLabel).toBe("phase");
+    expect(normalizeProposal({ ...base, sectionLabel: " phase " }).sectionLabel).toBe("phase");
+    expect(normalizeProposal({ ...base, sectionLabel: "المرحلة" }).sectionLabel).toBe("phase");
+    expect(normalizeProposal({ ...base, sectionLabel: "Module" }).sectionLabel).toBe("");
+    expect(normalizeProposal({ ...base, sectionLabel: "" }).sectionLabel).toBe("");
+  });
+
   it("normalizeProposal backfills projectType as custom for pre-field proposals", () => {
     const legacy = { ...newProposal("Old", "On signature") } as Record<string, unknown>;
     delete legacy.projectType;

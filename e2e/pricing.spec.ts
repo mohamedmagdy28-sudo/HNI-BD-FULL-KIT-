@@ -201,10 +201,12 @@ test("section label renames groups everywhere; description column appears only w
   await gotoWithLanguage(page, "/", lang);
   await createProposalWithProgram(page);
 
-  // Rename sections to Phase: existing group keeps its name, new groups follow the label.
-  await page.getByTestId("section-label").fill("Phase");
+  // Switch sections to Phase via the dropdown: new groups follow the localized label.
+  const phaseLabel = lang === "ar" ? "المرحلة" : "Phase";
+  await page.getByTestId("section-label").click();
+  await page.getByRole("option", { name: phaseLabel }).click();
   await page.getByTestId("add-program").click();
-  await expect(page.getByTestId("program-name-1")).toHaveValue("Phase 2");
+  await expect(page.getByTestId("program-name-1")).toHaveValue(`${phaseLabel} 2`);
   await page.getByTestId("line-label-1-0").fill("Consulting");
   await page.getByTestId("line-qty-1-0").fill("1");
   await page.getByTestId("line-rate-1-0").fill("5000");
@@ -212,7 +214,7 @@ test("section label renames groups everywhere; description column appears only w
   // No descriptions yet: the client document has no Description column.
   await page.getByTestId("open-client-view").click();
   const doc = page.getByTestId("client-document");
-  await expect(doc).toContainText("Phase 2");
+  await expect(doc).toContainText(`${phaseLabel} 2`);
   const descriptionHeader = lang === "ar" ? "الوصف" : "Description";
   await expect(doc.getByRole("columnheader", { name: descriptionHeader })).toHaveCount(0);
   await page.getByTestId("client-view-back").click();

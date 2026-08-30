@@ -116,7 +116,7 @@ export function ClientView({ proposal, result, onBack }: Props) {
   };
 
   const money = (v: number) => formatCurrency(v, locale);
-  const groupLabel = proposal.sectionLabel.trim() || p.docProgram;
+  const groupLabel = proposal.sectionLabel === "phase" ? p.phase : p.docProgram;
   const hasDescriptions = proposal.programs.some((x) => x.description.trim() !== "");
   const proposedIn = proposal.date
     ? new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(new Date(`${proposal.date}T00:00:00`))
