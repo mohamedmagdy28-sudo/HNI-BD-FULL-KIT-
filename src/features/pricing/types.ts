@@ -73,12 +73,27 @@ export type Settings = {
   marginFloorPct: number;
   /** Drives the weekly backup reminder banner. */
   lastExportAt: string | null;
+  /**
+   * Authorized signature and company stamp as data URLs, rendered on the
+   * document's signature blocks. Stored ONLY in this browser, never in the
+   * public bundle or repository: a downloadable signature/stamp image would
+   * be a forgery kit. Uploaded once per machine via the client-view toolbar.
+   */
+  signatureImage: string | null;
+  stampImage: string | null;
 };
 
 export const DEFAULT_SETTINGS: Settings = {
   marginFloorPct: 30,
   lastExportAt: null,
+  signatureImage: null,
+  stampImage: null,
 };
+
+/** Accepts only embedded image data, so imported backups cannot inject scriptable URLs. */
+export function asImageDataUrl(value: unknown): string | null {
+  return typeof value === "string" && value.startsWith("data:image/") ? value : null;
+}
 
 export const VAT_DEFAULT = 15;
 export const VAT_MIN = 0;
@@ -166,7 +181,7 @@ export function normalizeProposal(p: Proposal): Proposal {
     ...p,
     projectType: p.projectType === "workshop" ? "workshop" : "custom",
     sectionLabel: LEGACY_SECTION_LABELS[rawLabel] ?? "",
-    clientLogo: typeof p.clientLogo === "string" && p.clientLogo.startsWith("data:image/") ? p.clientLogo : null,
+    clientLogo: asImageDataUrl(p.clientLogo),
     programs: p.programs.map((pr) => ({ ...pr, description: typeof pr.description === "string" ? pr.description : "" })),
   };
 }

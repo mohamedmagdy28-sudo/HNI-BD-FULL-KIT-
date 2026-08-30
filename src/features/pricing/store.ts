@@ -10,7 +10,7 @@
 // A corrupted key loses one proposal, not the store; corrupt ids are reported
 // so the screen can surface recovery instead of crashing.
 
-import { DEFAULT_SETTINGS, normalizeProposal, type Proposal, type Settings } from "./types";
+import { asImageDataUrl, DEFAULT_SETTINGS, normalizeProposal, type Proposal, type Settings } from "./types";
 
 const PREFIX = "hni.pricing.v1";
 const INDEX_KEY = `${PREFIX}.index`;
@@ -117,6 +117,8 @@ export class LocalStoragePricingStore implements PricingStore {
         if (typeof parsed.lastExportAt === "string" || parsed.lastExportAt === null) {
           settings.lastExportAt = parsed.lastExportAt ?? null;
         }
+        settings.signatureImage = asImageDataUrl(parsed.signatureImage);
+        settings.stampImage = asImageDataUrl(parsed.stampImage);
       } catch {
         corruptIds.push("settings");
       }
@@ -160,6 +162,8 @@ export class LocalStoragePricingStore implements PricingStore {
           ? payload.settings.marginFloorPct
           : DEFAULT_SETTINGS.marginFloorPct,
       lastExportAt: payload.settings?.lastExportAt ?? null,
+      signatureImage: asImageDataUrl(payload.settings?.signatureImage),
+      stampImage: asImageDataUrl(payload.settings?.stampImage),
     };
 
     // Replace-all semantics: import is a recovery operation.

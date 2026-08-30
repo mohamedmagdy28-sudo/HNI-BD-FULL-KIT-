@@ -1,15 +1,20 @@
-import type { ReactNode } from "react";
-import { ArrowLeft, Printer } from "lucide-react";
+import { useRef, type ReactNode } from "react";
+import { ArrowLeft, ImagePlus, Printer, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import { formatCurrency, useI18n } from "@/lib/i18n";
 import type { CalcResult } from "./calc";
-import { sectionKindLabel, type Proposal } from "./types";
+import { fileToLogoDataUrl } from "./logo";
+import { sectionKindLabel, type Proposal, type Settings } from "./types";
 import { BANK_DETAILS, TERMS_PAGE_1, TERMS_PAGE_2, type TermsSection } from "./template";
 import "./print.css";
 
 type Props = {
   proposal: Proposal;
   result: CalcResult;
+  settings: Settings;
+  /** Persists signature/stamp uploads (browser-local settings, never published). */
+  onSettingsChange: (patch: Partial<Settings>) => void;
   onBack: () => void;
 };
 
@@ -59,13 +64,33 @@ function PageChrome() {
   );
 }
 
-/** Signature strip as on template slides 3-5: intentionally blank lines, no images. */
-function SignatureBlock({ clientName }: { clientName: string }) {
+/**
+ * Signature strip as on template slides 3-5. The HNI side renders the
+ * browser-local signature and stamp images when they are set; the client
+ * side always stays blank for counter-signing after printing.
+ */
+function SignatureBlock({ clientName, settings }: { clientName: string; settings: Settings }) {
   const { t } = useI18n();
   const p = t.pricing;
   return (
     <div className="absolute bottom-[0.35in] left-[2.89in] right-[1.6in] flex gap-[0.8in] text-[11pt]">
-      <div className="flex-1">
+      <div className="relative flex-1">
+        {settings.signatureImage && (
+          <img
+            src={settings.signatureImage}
+            alt={p.signature}
+            data-testid="doc-signature"
+            className="absolute bottom-[0.5in] left-[0.15in] h-[0.65in] w-auto max-w-[2.2in] object-contain"
+          />
+        )}
+        {settings.stampImage && (
+          <img
+            src={settings.stampImage}
+            alt={p.stamp}
+            data-testid="doc-stamp"
+            className="absolute bottom-[0.28in] left-[2.1in] h-[1.05in] w-auto max-w-[1.4in] object-contain opacity-90"
+          />
+        )}
         <div className="mb-[0.45in] border-b border-[#404040]" />
         <span>{p.docSignedHni}</span>
       </div>
@@ -79,7 +104,19 @@ function SignatureBlock({ clientName }: { clientName: string }) {
   );
 }
 
-function TermsPage({ title, sections, note, clientName }: { title: string; sections: TermsSection[]; note: string; clientName: string }) {
+function TermsPage({
+  title,
+  sections,
+  note,
+  clientName,
+  settings,
+}: {
+  title: string;
+  sections: TermsSection[];
+  note: string;
+  clientName: string;
+  settings: Settings;
+}) {
   return (
     <DocPage>
       <h2 className="absolute left-[0.36in] top-[0.17in] text-[26pt] font-bold text-hni-black">{title}</h2>
@@ -96,15 +133,27 @@ function TermsPage({ title, sections, note, clientName }: { title: string; secti
           </div>
         ))}
       </div>
-      <SignatureBlock clientName={clientName} />
+      <SignatureBlock clientName={clientName} settings={settings} />
       <PageChrome />
     </DocPage>
   );
 }
 
-export function ClientView({ proposal, result, onBack }: Props) {
+export function ClientView({ proposal, result, settings, onSettingsChange, onBack }: Props) {
   const { t, locale } = useI18n();
   const p = t.pricing;
+  const { toast } = useToast();
+  const signatureInputRef = useRef<HTMLInputElement>(null);
+  const stampInputRef = useRef<HTMLInputElement>(null);
+
+  const intake = (field: "signatureImage" | "stampImage") => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    void fileToLogoDataUrl(file)
+      .then((dataUrl) => onSettingsChange({ [field]: dataUrl }))
+      .catch(() => toast({ title: p.clientLogoError, variant: "destructive" }));
+  };
 
   const print = async () => {
     try {
@@ -124,15 +173,53 @@ export function ClientView({ proposal, result, onBack }: Props) {
 
   return (
     <div>
-      <div className="mb-4 flex items-center gap-2 print:hidden">
+      <div className="mb-4 flex flex-wrap items-center gap-2 print:hidden">
         <Button variant="outline" size="sm" data-testid="client-view-back" onClick={onBack}>
           <ArrowLeft className="size-4 rtl:rotate-180" aria-hidden />
           {p.back}
         </Button>
-        <Button size="sm" data-testid="client-view-print" className="ms-auto" onClick={print}>
-          <Printer className="size-4" aria-hidden />
-          {p.print}
-        </Button>
+        <div className="ms-auto flex items-center gap-2" title={p.signatureHint}>
+          {(
+            [
+              { field: "signatureImage", label: p.signature, remove: p.signatureRemove, ref: signatureInputRef, testid: "signature" },
+              { field: "stampImage", label: p.stamp, remove: p.stampRemove, ref: stampInputRef, testid: "stamp" },
+            ] as const
+          ).map((item) => (
+            <div key={item.field} className="flex items-center gap-1">
+              {settings[item.field] ? (
+                <>
+                  <img
+                    src={settings[item.field]!}
+                    alt={item.label}
+                    data-testid={`${item.testid}-preview`}
+                    className="h-8 w-auto max-w-20 rounded border border-line-1 bg-surface-0 object-contain px-1"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-hni-grey-mid hover:text-[color:var(--status-danger-fg)]"
+                    aria-label={item.remove}
+                    data-testid={`${item.testid}-remove`}
+                    onClick={() => onSettingsChange({ [item.field]: null })}
+                  >
+                    <X className="size-3.5" aria-hidden />
+                  </Button>
+                </>
+              ) : (
+                <Button variant="outline" size="sm" className="h-8" onClick={() => item.ref.current?.click()}>
+                  <ImagePlus className="size-4" aria-hidden />
+                  {item.label}
+                </Button>
+              )}
+            </div>
+          ))}
+          <Button size="sm" data-testid="client-view-print" onClick={print}>
+            <Printer className="size-4" aria-hidden />
+            {p.print}
+          </Button>
+        </div>
+        <input ref={signatureInputRef} type="file" accept="image/*" className="hidden" aria-hidden tabIndex={-1} data-testid="signature-upload" onChange={intake("signatureImage")} />
+        <input ref={stampInputRef} type="file" accept="image/*" className="hidden" aria-hidden tabIndex={-1} data-testid="stamp-upload" onChange={intake("stampImage")} />
       </div>
 
       <div className="overflow-x-auto">
@@ -282,8 +369,8 @@ export function ClientView({ proposal, result, onBack }: Props) {
           </DocPage>
 
           {/* Pages 3-4 — Terms (verbatim, English) with blank signature strips. */}
-          <TermsPage title={p.docTerms1} sections={TERMS_PAGE_1} note={p.docLegalEnNote} clientName={proposal.clientName} />
-          <TermsPage title={p.docTerms2} sections={TERMS_PAGE_2} note={p.docLegalEnNote} clientName={proposal.clientName} />
+          <TermsPage title={p.docTerms1} sections={TERMS_PAGE_1} note={p.docLegalEnNote} clientName={proposal.clientName} settings={settings} />
+          <TermsPage title={p.docTerms2} sections={TERMS_PAGE_2} note={p.docLegalEnNote} clientName={proposal.clientName} settings={settings} />
 
           {/* Page 5 — Bank details. */}
           <DocPage>
@@ -298,7 +385,7 @@ export function ClientView({ proposal, result, onBack }: Props) {
                 ))}
               </tbody>
             </table>
-            <SignatureBlock clientName={proposal.clientName} />
+            <SignatureBlock clientName={proposal.clientName} settings={settings} />
             <PageChrome />
           </DocPage>
 

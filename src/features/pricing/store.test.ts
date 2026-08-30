@@ -75,11 +75,31 @@ describe("LocalStoragePricingStore", () => {
     expect(r.corruptIds).toContain("settings");
   });
 
+  it("signature and stamp settings round-trip and reject non-image values", () => {
+    store.saveSettings({
+      marginFloorPct: 30,
+      lastExportAt: null,
+      signatureImage: "data:image/png;base64,SIG",
+      stampImage: "data:image/png;base64,STAMP",
+    });
+    const r = store.loadAll();
+    expect(r.settings.signatureImage).toBe("data:image/png;base64,SIG");
+    expect(r.settings.stampImage).toBe("data:image/png;base64,STAMP");
+
+    storage.setItem(
+      "hni.pricing.v1.settings",
+      JSON.stringify({ marginFloorPct: 30, lastExportAt: null, signatureImage: "https://evil/x.png", stampImage: 42 }),
+    );
+    const bad = store.loadAll();
+    expect(bad.settings.signatureImage).toBeNull();
+    expect(bad.settings.stampImage).toBeNull();
+  });
+
   it("write failures return false instead of throwing", () => {
     const a = proposal("A");
     storage.failWrites = true;
     expect(store.saveProposal(a, [a.id])).toBe(false);
-    expect(store.saveSettings({ marginFloorPct: 30, lastExportAt: null })).toBe(false);
+    expect(store.saveSettings({ marginFloorPct: 30, lastExportAt: null, signatureImage: null, stampImage: null })).toBe(false);
   });
 
   it("deleteProposal removes the key and rewrites the index", () => {
@@ -96,7 +116,7 @@ describe("LocalStoragePricingStore", () => {
   it("export and import round-trip the whole store", () => {
     const a = proposal("A");
     store.saveProposal(a, [a.id]);
-    store.saveSettings({ marginFloorPct: 25, lastExportAt: "2026-08-01T00:00:00Z" });
+    store.saveSettings({ marginFloorPct: 25, lastExportAt: "2026-08-01T00:00:00Z", signatureImage: null, stampImage: null });
     const json = store.exportAll();
 
     // Fresh store: import replaces everything.

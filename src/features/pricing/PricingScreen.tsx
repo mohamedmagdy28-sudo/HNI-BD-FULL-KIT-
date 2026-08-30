@@ -164,7 +164,19 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
     new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(new Date(`${iso}T00:00:00`));
 
   if (mode === "client" && current && result) {
-    return <ClientView proposal={current} result={result} onBack={() => setMode(clientViewOrigin)} />;
+    return (
+      <ClientView
+        proposal={current}
+        result={result}
+        settings={settings}
+        onSettingsChange={(patch) => {
+          const nextSettings = { ...settings, ...patch };
+          setSettings(nextSettings);
+          setStorageError(!pricingStore.saveSettings(nextSettings));
+        }}
+        onBack={() => setMode(clientViewOrigin)}
+      />
+    );
   }
 
   const sentDocuments = proposals.filter((x) => x.sentAt != null);

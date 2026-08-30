@@ -268,6 +268,44 @@ test("client logo uploads, appears on the cover, and can be removed", async ({ p
   await expect(page.getByTestId("doc-client-logo")).toHaveCount(0);
 });
 
+test("signature and stamp upload once and appear on every signature block", async ({ page }, testInfo) => {
+  const lang = langFromProject(testInfo.project.name);
+  await gotoWithLanguage(page, "/", lang);
+  await createProposalWithProgram(page);
+  await page.getByTestId("open-client-view").click();
+
+  const makePng = async (color: string) =>
+    Buffer.from(
+      await page.evaluate((fill) => {
+        const c = document.createElement("canvas");
+        c.width = 40;
+        c.height = 20;
+        const ctx = c.getContext("2d")!;
+        ctx.fillStyle = fill;
+        ctx.fillRect(0, 0, 40, 20);
+        return c.toDataURL("image/png").split(",")[1];
+      }, color),
+      "base64",
+    );
+
+  await page.getByTestId("signature-upload").setInputFiles({ name: "sig.png", mimeType: "image/png", buffer: await makePng("#222") });
+  await page.getByTestId("stamp-upload").setInputFiles({ name: "stamp.png", mimeType: "image/png", buffer: await makePng("#33f") });
+
+  // Three signature blocks (Terms 1/2, Terms 2/2, Bank details), each with both images.
+  await expect(page.getByTestId("doc-signature")).toHaveCount(3);
+  await expect(page.getByTestId("doc-stamp")).toHaveCount(3);
+
+  // App-level settings: they persist across proposals and reloads.
+  await page.reload();
+  await page.getByTestId("open-client-view").click();
+  await expect(page.getByTestId("doc-signature")).toHaveCount(3);
+
+  // Removing clears every block.
+  await page.getByTestId("signature-remove").click();
+  await expect(page.getByTestId("doc-signature")).toHaveCount(0);
+  await expect(page.getByTestId("doc-stamp")).toHaveCount(3);
+});
+
 test("documents archive files sent proposals and reopens their document", async ({ page }, testInfo) => {
   const lang = langFromProject(testInfo.project.name);
   await gotoWithLanguage(page, "/", lang);
