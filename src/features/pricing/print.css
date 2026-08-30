@@ -1,9 +1,24 @@
-/* Client-document print rules. The visibility approach keeps layout intact
-   (display:none would reflow); the app chrome disappears, only the document
-   prints. Margins on @page replace the browser's default header/footer area. */
+/* Client-document print rules. Pages match the official template's slide size
+   (13.33in x 7.5in) exactly, so the printed PDF is indistinguishable from a
+   PowerPoint export. The visibility approach keeps layout intact; the app
+   chrome disappears and only the document prints. */
+
+.doc-page {
+  width: 13.33in;
+  height: 7.5in;
+}
+
+@media screen {
+  .doc-page {
+    border: 1px solid var(--border-1);
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
+  }
+}
+
 @page {
-  size: A4;
-  margin: 14mm 14mm 16mm 14mm;
+  size: 13.33in 7.5in;
+  margin: 0;
 }
 
 @media print {
@@ -18,13 +33,30 @@
     position: absolute;
     inset-inline-start: 0;
     top: 0;
-    width: 100%;
     margin: 0;
+  }
+  #client-document.doc-pages {
+    width: 13.33in;
+  }
+  .doc-page {
+    margin: 0 !important;
     border: none;
+    border-radius: 0;
     box-shadow: none;
-    /* Tinted cells and the magenta rule must survive the printer's default
-       background stripping. */
+    page-break-after: always;
+    break-after: page;
+    /* Brand fills and the cover art must survive printer background stripping. */
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
+  }
+  .doc-page:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+  .doc-pages {
+    /* space-y margins would offset page breaks */
+  }
+  .doc-pages > * + * {
+    margin-top: 0 !important;
   }
 }
