@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCheck, Copy, Download, Eye, FilePlus2, Trash2, Upload } from "lucide-react";
+import { CheckCheck, Copy, Download, Eye, FilePlus2, Files, Trash2, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -11,6 +11,7 @@ import { useI18n } from "@/lib/i18n";
 import { calc } from "./calc";
 import { ClientView } from "./ClientView";
 import { CostTable } from "./CostTable";
+import { DocumentsList } from "./DocumentsList";
 import { SummaryPanel } from "./SummaryPanel";
 import { debounce, LocalStoragePricingStore, type PricingStore } from "./store";
 import { newId, newProposal, type ProjectType, type Proposal, type Settings } from "./types";
@@ -30,7 +31,9 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
   const [proposals, setProposals] = useState<Proposal[]>(initialLoad.proposals);
   const [settings, setSettings] = useState<Settings>(initialLoad.settings);
   const [currentId, setCurrentId] = useState<string | null>(initialLoad.proposals[0]?.id ?? null);
-  const [mode, setMode] = useState<"edit" | "client">("edit");
+  const [mode, setMode] = useState<"edit" | "client" | "documents">("edit");
+  /** Where the client view's Back button returns to. */
+  const [clientViewOrigin, setClientViewOrigin] = useState<"edit" | "documents">("edit");
   const [storageError, setStorageError] = useState(false);
   const [hadCorruptData, setHadCorruptData] = useState(initialLoad.corruptIds.length > 0);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -150,8 +153,10 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
     new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(new Date(`${iso}T00:00:00`));
 
   if (mode === "client" && current && result) {
-    return <ClientView proposal={current} result={result} onBack={() => setMode("edit")} />;
+    return <ClientView proposal={current} result={result} onBack={() => setMode(clientViewOrigin)} />;
   }
+
+  const sentDocuments = proposals.filter((x) => x.sentAt != null);
 
   return (
     <div>
@@ -180,6 +185,19 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
               <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
                 <Upload className="size-4" aria-hidden />
                 {p.import}
+              </Button>
+              <Button
+                variant={mode === "documents" ? "secondary" : "outline"}
+                size="sm"
+                aria-pressed={mode === "documents"}
+                data-testid="documents-toggle"
+                onClick={() => setMode(mode === "documents" ? "edit" : "documents")}
+              >
+                <Files className="size-4" aria-hidden />
+                {p.documents}
+                {sentDocuments.length > 0 && (
+                  <span className="tabular rounded bg-surface-2 px-1 text-[11px] text-hni-grey-dark">{sentDocuments.length}</span>
+                )}
               </Button>
             </>
           ) : undefined
@@ -225,11 +243,26 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
         </div>
       )}
 
-      {!current && (
+      {mode === "documents" && (
+        <DocumentsList
+          documents={sentDocuments}
+          onOpenDocument={(id) => {
+            setCurrentId(id);
+            setClientViewOrigin("documents");
+            setMode("client");
+          }}
+          onOpenCosting={(id) => {
+            setCurrentId(id);
+            setMode("edit");
+          }}
+        />
+      )}
+
+      {mode === "edit" && !current && (
         <EmptyState title={p.empty.title} body={p.empty.body} cta={p.newProposal} onCta={createProposal} />
       )}
 
-      {current && result && (
+      {mode === "edit" && current && result && (
         <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_330px]">
           <div className="min-w-0 space-y-4">
             <section className="rounded-lg border border-line-1 bg-surface-0 p-3">
@@ -300,7 +333,10 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
                   size="sm"
                   data-testid="open-client-view"
                   disabled={!result.scheduleValid}
-                  onClick={() => setMode("client")}
+                  onClick={() => {
+                    setClientViewOrigin("edit");
+                    setMode("client");
+                  }}
                 >
                   <Eye className="size-4" aria-hidden />
                   {p.clientView}

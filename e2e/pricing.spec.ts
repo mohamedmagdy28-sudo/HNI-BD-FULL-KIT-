@@ -196,6 +196,36 @@ test("workshop projects seed fixed cost items; custom starts blank", async ({ pa
   await expect(page.getByTestId("line-label-0-0")).toHaveValue(workshopLines[0]);
 });
 
+test("documents archive files sent proposals and reopens their document", async ({ page }, testInfo) => {
+  const lang = langFromProject(testInfo.project.name);
+  await gotoWithLanguage(page, "/", lang);
+
+  await createProposalWithProgram(page);
+  await page.getByTestId("client-name").fill("Archive Client");
+  await page.getByTestId("proposal-title").fill("Archived Deal");
+  await page.waitForTimeout(400);
+
+  // Drafts are not documents: the archive starts empty.
+  await page.getByTestId("documents-toggle").click();
+  await expect(page.locator("[data-testid^='document-row-']")).toHaveCount(0);
+  await page.getByTestId("documents-toggle").click();
+
+  // Mark as sent files the proposal as a document.
+  await page.getByTestId("mark-sent").click();
+  await page.getByTestId("documents-toggle").click();
+  const row = page.locator("[data-testid^='document-row-']");
+  await expect(row).toHaveCount(1);
+  await expect(row).toContainText("Archived Deal");
+  await expect(row).toContainText("Archive Client");
+
+  // Open document renders the client view; Back returns to the archive.
+  await page.locator("[data-testid^='open-document-']").click();
+  await expect(page.getByTestId("client-document")).toBeVisible();
+  await expect(page.getByTestId("doc-client")).toHaveText("Archive Client");
+  await page.getByTestId("client-view-back").click();
+  await expect(row).toHaveCount(1);
+});
+
 test("corrupted stored proposal degrades to a warning, not a crash", async ({ page }, testInfo) => {
   const lang = langFromProject(testInfo.project.name);
   await page.addInitScript(() => {
