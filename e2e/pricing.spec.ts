@@ -108,6 +108,8 @@ test("client view shows only client-facing figures in the active language", asyn
   const doc = page.getByTestId("client-document");
   await expect(doc).toBeVisible();
   await expect(page.getByTestId("doc-client")).toHaveText("Acme Corp");
+  // Unit price / day: 1 program day, so the row's unit price equals its net share.
+  expect(digits(await page.getByTestId("doc-unit-0").textContent())).toBe(36450);
   expect(digits(await page.getByTestId("doc-net").textContent())).toBe(36450);
   expect(digits(await page.getByTestId("doc-vat").textContent())).toBe(5468);
   expect(digits(await page.getByTestId("doc-total").textContent())).toBe(41918);

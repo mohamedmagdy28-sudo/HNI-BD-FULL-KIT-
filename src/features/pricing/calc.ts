@@ -18,6 +18,8 @@ export type ProgramTotals = {
   netShare: number;
   /** Net share divided by participants; null when participants is 0. */
   perParticipant: number | null;
+  /** Net share divided by days (the row's unit price per day); null when days is 0. */
+  perDay: number | null;
 };
 
 export type ScheduleTotals = {
@@ -157,6 +159,7 @@ export function calc(proposal: Proposal): CalcResult {
     netShare: netShares[i],
     perParticipant:
       p.participants > 0 && costs[i] > 0 ? round(netShares[i] / p.participants) : null,
+    perDay: p.days > 0 && costs[i] > 0 ? round(netShares[i] / p.days) : null,
   }));
 
   const scheduleValid = isScheduleValid(proposal.schedule);

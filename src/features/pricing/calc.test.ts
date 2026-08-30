@@ -220,6 +220,17 @@ describe("calc: the full chain, rounded-canonical", () => {
     expect(r.totalIncVat).toBe(0);
   });
 
+  it("per-day unit price is net share over days, null when days or cost is 0", () => {
+    const proposal = makeProposal({
+      programs: [makeProgram(), makeProgram({ name: "NoDays", days: 0 })],
+    });
+    const r = calc(proposal);
+    expect(r.programs[0].perDay).toBe(Math.round(r.programs[0].netShare / 3));
+    expect(r.programs[1].perDay).toBeNull();
+    const empty = calc(makeProposal({ programs: [] }));
+    expect(empty.programs).toEqual([]);
+  });
+
   it("per-participant is per program and null when participants or cost is 0", () => {
     const proposal = makeProposal({
       programs: [makeProgram(), makeProgram({ name: "Empty", participants: 0 })],

@@ -164,15 +164,16 @@ export function ClientView({ proposal, result, onBack }: Props) {
                   <tr className="border-b-2 border-hni-black text-[8.5pt] uppercase tracking-wide text-hni-grey-dark">
                     <th className="py-[0.08in] text-start font-semibold">{groupLabel}</th>
                     {hasDescriptions && (
-                      <th className="w-[3.6in] py-[0.08in] text-start font-semibold">{p.description}</th>
+                      <th className="w-[2.7in] py-[0.08in] text-start font-semibold">{p.description}</th>
                     )}
-                    <th className="w-[1in] py-[0.08in] text-end font-semibold">{p.docDays}</th>
-                    <th className="w-[1.4in] py-[0.08in] text-end font-semibold">{p.docParticipants}</th>
-                    <th className="w-[1.8in] py-[0.08in] text-end font-semibold">{p.docInvestment}</th>
+                    <th className="w-[0.85in] py-[0.08in] text-end font-semibold">{p.docDays}</th>
+                    <th className="w-[1.2in] py-[0.08in] text-end font-semibold">{p.docParticipants}</th>
+                    <th className="w-[1.5in] py-[0.08in] text-end font-semibold">{p.docUnitPrice}</th>
+                    <th className="w-[1.7in] py-[0.08in] text-end font-semibold">{p.docInvestment}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {proposal.programs.map((program) => {
+                  {proposal.programs.map((program, i) => {
                     const totals = result.programs.find((x) => x.programId === program.id);
                     return (
                       <tr key={program.id} className="border-b border-line-1 align-top">
@@ -187,6 +188,9 @@ export function ClientView({ proposal, result, onBack }: Props) {
                         )}
                         <td className="tabular py-[0.07in] text-end">{program.days}</td>
                         <td className="tabular py-[0.07in] text-end">{program.participants || "—"}</td>
+                        <td className="tabular py-[0.07in] text-end" data-testid={`doc-unit-${i}`}>
+                          {totals?.perDay != null ? <bdi>{money(totals.perDay)}</bdi> : "—"}
+                        </td>
                         <td className="tabular py-[0.07in] text-end">
                           <bdi>{money(totals?.netShare ?? 0)}</bdi>
                         </td>
@@ -195,7 +199,7 @@ export function ClientView({ proposal, result, onBack }: Props) {
                   })}
                   {/* Ledger: the table closes on its own subtotal, like a financial instrument. */}
                   <tr>
-                    <td colSpan={hasDescriptions ? 4 : 3} className="py-[0.07in] pe-[0.25in] text-end font-bold text-hni-black">
+                    <td colSpan={hasDescriptions ? 5 : 4} className="py-[0.07in] pe-[0.25in] text-end font-bold text-hni-black">
                       {p.docSubtotal}
                     </td>
                     <td className="tabular py-[0.07in] text-end font-bold text-hni-black">
