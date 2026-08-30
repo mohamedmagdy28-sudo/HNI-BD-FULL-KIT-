@@ -177,7 +177,7 @@ export function ClientView({ proposal, result, onBack }: Props) {
                     return (
                       <tr key={program.id} className="border-b border-line-1 align-top">
                         <td className="py-[0.07in]">
-                          <span className="font-medium text-hni-black">{program.name}</span>
+                          <span className="font-bold text-hni-black">{program.name}</span>
                           {program.city && <span className="text-hni-grey-dark"> · {program.city}</span>}
                         </td>
                         {hasDescriptions && (
@@ -187,28 +187,40 @@ export function ClientView({ proposal, result, onBack }: Props) {
                         )}
                         <td className="tabular py-[0.07in] text-end">{program.days}</td>
                         <td className="tabular py-[0.07in] text-end">{program.participants || "—"}</td>
-                        <td className="tabular py-[0.07in] text-end font-medium text-hni-black">
+                        <td className="tabular py-[0.07in] text-end">
                           <bdi>{money(totals?.netShare ?? 0)}</bdi>
                         </td>
                       </tr>
                     );
                   })}
+                  {/* Ledger: the table closes on its own subtotal, like a financial instrument. */}
+                  <tr>
+                    <td colSpan={hasDescriptions ? 4 : 3} className="py-[0.07in] pe-[0.25in] text-end font-bold text-hni-black">
+                      {p.docSubtotal}
+                    </td>
+                    <td className="tabular py-[0.07in] text-end font-bold text-hni-black">
+                      <bdi>{money(result.listPrice)}</bdi>
+                    </td>
+                  </tr>
                 </tbody>
               </table>
 
-              <div className="mt-[0.2in] flex items-start justify-between gap-[0.5in]">
+              <div className="mt-[0.35in] flex items-start justify-between gap-[0.6in]">
                 {result.scheduleValid && proposal.schedule.length > 0 ? (
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-[10pt] font-bold uppercase tracking-wide text-hni-black">{p.docScheduleTitle}</h3>
-                    <table className="mt-[0.06in] w-full border-collapse text-[10.5pt]">
+                  <div className="w-[5.2in]">
+                    <h3 className="border-b-2 border-hni-black pb-[0.06in] text-[10pt] font-bold uppercase tracking-wide text-hni-black">
+                      {p.docScheduleTitle}
+                    </h3>
+                    <table className="w-full border-collapse text-[10.5pt]">
                       <tbody>
-                        {proposal.schedule.map((item) => {
+                        {proposal.schedule.map((item, i) => {
                           const inst = result.installments.find((x) => x.itemId === item.id);
                           return (
                             <tr key={item.id} className="border-b border-line-1 last:border-b-0">
-                              <td className="py-[0.05in]">{item.label || "—"}</td>
-                              <td className="tabular w-[0.7in] py-[0.05in] text-end text-hni-grey-dark">{item.percent}%</td>
-                              <td className="tabular w-[1.6in] py-[0.05in] text-end font-medium text-hni-black">
+                              <td className="tabular w-[0.35in] py-[0.07in] text-hni-grey-dark">{i + 1}</td>
+                              <td className="py-[0.07in]">{item.label || "—"}</td>
+                              <td className="tabular w-[0.7in] py-[0.07in] text-end text-hni-grey-dark">{item.percent}%</td>
+                              <td className="tabular w-[1.5in] py-[0.07in] text-end font-bold text-hni-black">
                                 <bdi>{money(inst?.amount ?? 0)}</bdi>
                               </td>
                             </tr>
@@ -221,30 +233,25 @@ export function ClientView({ proposal, result, onBack }: Props) {
                   <div className="flex-1" />
                 )}
 
-                <div className="w-[3.6in] space-y-[0.04in] text-[11pt]">
+                <div className="w-[4.3in] text-[11pt]">
                   {result.discountAmount > 0 && (
-                    <>
-                      <div className="flex justify-between">
-                        <span className="text-hni-grey-dark">{p.docSubtotal}</span>
-                        <bdi className="tabular">{money(result.listPrice)}</bdi>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-hni-grey-dark">{p.docDiscount}</span>
-                        <bdi className="tabular">−{money(result.discountAmount)}</bdi>
-                      </div>
-                    </>
+                    <div className="flex justify-between border-b border-line-1 py-[0.05in]">
+                      <span className="text-hni-grey-dark">{p.docDiscount}</span>
+                      <bdi className="tabular">−{money(result.discountAmount)}</bdi>
+                    </div>
                   )}
-                  <div className="flex justify-between font-medium text-hni-black">
+                  <div className="flex justify-between border-b border-line-1 py-[0.05in] font-bold text-hni-black">
                     <span>{p.docNet}</span>
                     <bdi className="tabular" data-testid="doc-net">{money(result.netPrice)}</bdi>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between py-[0.05in]">
                     <span className="text-hni-grey-dark">
                       {p.docVat} {proposal.vatPct}%
                     </span>
                     <bdi className="tabular" data-testid="doc-vat">{money(result.vatAmount)}</bdi>
                   </div>
-                  <div className="flex justify-between border-t-2 border-hni-black pt-[0.05in] text-[12.5pt] font-bold text-hni-black">
+                  {/* The page's single brand moment: the total in a solid magenta band. */}
+                  <div className="mt-[0.08in] flex justify-between bg-hni-magenta px-[0.16in] py-[0.1in] text-[12.5pt] font-bold text-white">
                     <span>{p.docTotal}</span>
                     <bdi className="tabular" data-testid="doc-total">{money(result.totalIncVat)}</bdi>
                   </div>

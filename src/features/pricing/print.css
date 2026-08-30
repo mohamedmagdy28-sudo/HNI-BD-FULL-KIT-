@@ -45,7 +45,11 @@
     box-shadow: none;
     page-break-after: always;
     break-after: page;
-    /* Brand fills and the cover art must survive printer background stripping. */
+  }
+  /* Brand fills (magenta total band, cover art, motifs) must survive printer
+     background stripping, on every element of the document. */
+  #client-document,
+  #client-document * {
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }
