@@ -30,6 +30,8 @@ export type CostLine = {
 export type Program = {
   id: string;
   name: string;
+  /** Optional client-facing description; the client document shows a Description column only when at least one group has one. */
+  description: string;
   days: number;
   participants: number;
   city: string;
@@ -52,6 +54,8 @@ export type Proposal = {
   currency: "SAR";
   /** Controls what Add-program seeds. Proposals saved before this field exist load as "custom". */
   projectType: ProjectType;
+  /** What a group of cost lines is called in this proposal ("Phase", "Module", ...). Empty = localized "Program". */
+  sectionLabel: string;
   /** Canonical stored pricing field. Editing target margin writes back the implied markup. */
   markupPct: number;
   discount: Discount;
@@ -92,7 +96,7 @@ export function newCostLine(label = ""): CostLine {
 export function newProgram(name: string, seedLabels?: readonly string[]): Program {
   const costLines =
     seedLabels && seedLabels.length > 0 ? seedLabels.map((label) => newCostLine(label)) : [newCostLine()];
-  return { id: newId(), name, days: 1, participants: 0, city: "", costLines };
+  return { id: newId(), name, description: "", days: 1, participants: 0, city: "", costLines };
 }
 
 export function newProposal(title: string, scheduleLabel: string, projectType: ProjectType = "workshop"): Proposal {
@@ -103,6 +107,7 @@ export function newProposal(title: string, scheduleLabel: string, projectType: P
     date: new Date().toISOString().slice(0, 10),
     currency: "SAR",
     projectType,
+    sectionLabel: "",
     markupPct: 35,
     discount: { type: "percent", value: 0 },
     vatPct: VAT_DEFAULT,
@@ -114,5 +119,10 @@ export function newProposal(title: string, scheduleLabel: string, projectType: P
 
 /** Backfills fields added after a proposal was stored (schema drift tolerance). */
 export function normalizeProposal(p: Proposal): Proposal {
-  return { ...p, projectType: p.projectType === "workshop" ? "workshop" : "custom" };
+  return {
+    ...p,
+    projectType: p.projectType === "workshop" ? "workshop" : "custom",
+    sectionLabel: typeof p.sectionLabel === "string" ? p.sectionLabel : "",
+    programs: p.programs.map((pr) => ({ ...pr, description: typeof pr.description === "string" ? pr.description : "" })),
+  };
 }

@@ -297,6 +297,17 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
                     className="tabular mt-1 h-8"
                   />
                 </label>
+                <label className="w-36">
+                  <span className="block text-[11px] font-medium uppercase tracking-wide text-hni-grey-dark">{p.sectionLabel}</span>
+                  <Input
+                    value={current.sectionLabel}
+                    disabled={locked}
+                    placeholder={p.program}
+                    data-testid="section-label"
+                    onChange={(e) => updateCurrent({ sectionLabel: e.target.value })}
+                    className="mt-1 h-8"
+                  />
+                </label>
                 <div className="w-48">
                   <span className="block text-[11px] font-medium uppercase tracking-wide text-hni-grey-dark">{p.projectType}</span>
                   <Select
@@ -358,6 +369,7 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
               programs={current.programs}
               locked={locked}
               seedLabels={current.projectType === "workshop" ? p.workshopLines : []}
+              groupLabel={current.sectionLabel.trim() || p.program}
               onChange={(programs) => updateCurrent({ programs })}
             />
           </div>

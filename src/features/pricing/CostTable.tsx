@@ -10,6 +10,8 @@ type Props = {
   locked: boolean;
   /** Fixed cost items pre-created in every new program (from the proposal's project type). */
   seedLabels: readonly string[];
+  /** What a group is called in this proposal: "Program" by default, "Phase", "Module", ... */
+  groupLabel: string;
   onChange: (programs: Program[]) => void;
 };
 
@@ -19,7 +21,7 @@ function num(value: string): number {
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
-export function CostTable({ programs, locked, seedLabels, onChange }: Props) {
+export function CostTable({ programs, locked, seedLabels, groupLabel, onChange }: Props) {
   const { t, locale } = useI18n();
   const p = t.pricing;
 
@@ -40,12 +42,12 @@ export function CostTable({ programs, locked, seedLabels, onChange }: Props) {
       {programs.map((program, index) => (
         <section
           key={program.id}
-          aria-label={`${p.program} ${index + 1}`}
+          aria-label={`${groupLabel} ${index + 1}`}
           className="overflow-hidden rounded-lg border border-line-1 bg-surface-0"
         >
           <div className="flex flex-wrap items-end gap-2 border-b border-line-1 bg-surface-1 px-3 py-2.5">
             <label className="min-w-0 flex-1 basis-48">
-              <span className="block text-[11px] font-medium uppercase tracking-wide text-hni-grey-dark">{p.program}</span>
+              <span className="block text-[11px] font-medium uppercase tracking-wide text-hni-grey-dark">{groupLabel}</span>
               <Input
                 value={program.name}
                 disabled={locked}
@@ -98,6 +100,17 @@ export function CostTable({ programs, locked, seedLabels, onChange }: Props) {
                 <Trash2 className="size-4" aria-hidden />
               </Button>
             )}
+            <label className="w-full">
+              <span className="sr-only">{p.description}</span>
+              <Input
+                value={program.description}
+                disabled={locked}
+                placeholder={p.description}
+                data-testid={`program-description-${index}`}
+                onChange={(e) => updateProgram(program.id, { description: e.target.value })}
+                className="mt-1 h-8 bg-surface-0 text-[12.5px]"
+              />
+            </label>
           </div>
 
           <table className="w-full text-[13px]">
@@ -195,7 +208,7 @@ export function CostTable({ programs, locked, seedLabels, onChange }: Props) {
           variant="outline"
           size="sm"
           data-testid="add-program"
-          onClick={() => onChange([...programs, newProgram(`${t.pricing.program} ${programs.length + 1}`, seedLabels)])}
+          onClick={() => onChange([...programs, newProgram(`${groupLabel} ${programs.length + 1}`, seedLabels)])}
         >
           <Plus className="size-4" aria-hidden />
           {p.addProgram}

@@ -142,14 +142,19 @@ describe("project types", () => {
     expect(normalizeProposal(newProposal("New", "On signature", "workshop")).projectType).toBe("workshop");
   });
 
-  it("loadAll normalizes stored proposals missing projectType", () => {
+  it("loadAll normalizes stored proposals missing projectType, sectionLabel, and descriptions", () => {
     const p = newProposal("Legacy", "On signature");
-    const stripped = { ...p } as Record<string, unknown>;
+    p.programs = [newProgram("Old program")];
+    const stripped = JSON.parse(JSON.stringify(p)) as Record<string, unknown>;
     delete stripped.projectType;
+    delete stripped.sectionLabel;
+    delete (stripped.programs as Record<string, unknown>[])[0].description;
     storage.setItem("hni.pricing.v1.index", JSON.stringify([p.id]));
     storage.setItem(`hni.pricing.v1.proposal.${p.id}`, JSON.stringify(stripped));
     const r = store.loadAll();
     expect(r.proposals[0].projectType).toBe("custom");
+    expect(r.proposals[0].sectionLabel).toBe("");
+    expect(r.proposals[0].programs[0].description).toBe("");
     expect(r.corruptIds).toEqual([]);
   });
 });

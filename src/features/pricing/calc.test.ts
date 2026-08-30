@@ -16,6 +16,7 @@ function makeProgram(overrides: Partial<Program> = {}): Program {
   return {
     id: newId(),
     name: "Executive Leadership",
+    description: "",
     days: 3,
     participants: 24,
     city: "Riyadh",
@@ -36,6 +37,7 @@ function makeProposal(overrides: Partial<Proposal> = {}): Proposal {
     date: "2026-08-29",
     currency: "SAR",
     projectType: "custom",
+    sectionLabel: "",
     markupPct: 35,
     discount: { type: "percent", value: 0 },
     vatPct: 15,

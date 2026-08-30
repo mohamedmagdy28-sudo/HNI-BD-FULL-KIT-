@@ -116,6 +116,8 @@ export function ClientView({ proposal, result, onBack }: Props) {
   };
 
   const money = (v: number) => formatCurrency(v, locale);
+  const groupLabel = proposal.sectionLabel.trim() || p.docProgram;
+  const hasDescriptions = proposal.programs.some((x) => x.description.trim() !== "");
   const proposedIn = proposal.date
     ? new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(new Date(`${proposal.date}T00:00:00`))
     : "";
@@ -160,21 +162,29 @@ export function ClientView({ proposal, result, onBack }: Props) {
               <table className="w-full border-collapse text-[11pt]">
                 <thead>
                   <tr className="border-b-2 border-hni-black text-[8.5pt] uppercase tracking-wide text-hni-grey-dark">
-                    <th className="py-[0.08in] text-start font-semibold">{p.docProgram}</th>
-                    <th className="w-[1.1in] py-[0.08in] text-end font-semibold">{p.docDays}</th>
-                    <th className="w-[1.5in] py-[0.08in] text-end font-semibold">{p.docParticipants}</th>
-                    <th className="w-[2in] py-[0.08in] text-end font-semibold">{p.docInvestment}</th>
+                    <th className="py-[0.08in] text-start font-semibold">{groupLabel}</th>
+                    {hasDescriptions && (
+                      <th className="w-[3.6in] py-[0.08in] text-start font-semibold">{p.description}</th>
+                    )}
+                    <th className="w-[1in] py-[0.08in] text-end font-semibold">{p.docDays}</th>
+                    <th className="w-[1.4in] py-[0.08in] text-end font-semibold">{p.docParticipants}</th>
+                    <th className="w-[1.8in] py-[0.08in] text-end font-semibold">{p.docInvestment}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {proposal.programs.map((program) => {
                     const totals = result.programs.find((x) => x.programId === program.id);
                     return (
-                      <tr key={program.id} className="border-b border-line-1">
+                      <tr key={program.id} className="border-b border-line-1 align-top">
                         <td className="py-[0.07in]">
                           <span className="font-medium text-hni-black">{program.name}</span>
                           {program.city && <span className="text-hni-grey-dark"> · {program.city}</span>}
                         </td>
+                        {hasDescriptions && (
+                          <td className="py-[0.07in] pe-[0.15in] text-[9.5pt] leading-[1.4] text-hni-grey-dark">
+                            {program.description || "—"}
+                          </td>
+                        )}
                         <td className="tabular py-[0.07in] text-end">{program.days}</td>
                         <td className="tabular py-[0.07in] text-end">{program.participants || "—"}</td>
                         <td className="tabular py-[0.07in] text-end font-medium text-hni-black">

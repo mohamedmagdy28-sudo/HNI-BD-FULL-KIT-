@@ -196,6 +196,34 @@ test("workshop projects seed fixed cost items; custom starts blank", async ({ pa
   await expect(page.getByTestId("line-label-0-0")).toHaveValue(workshopLines[0]);
 });
 
+test("section label renames groups everywhere; description column appears only when used", async ({ page }, testInfo) => {
+  const lang = langFromProject(testInfo.project.name);
+  await gotoWithLanguage(page, "/", lang);
+  await createProposalWithProgram(page);
+
+  // Rename sections to Phase: existing group keeps its name, new groups follow the label.
+  await page.getByTestId("section-label").fill("Phase");
+  await page.getByTestId("add-program").click();
+  await expect(page.getByTestId("program-name-1")).toHaveValue("Phase 2");
+  await page.getByTestId("line-label-1-0").fill("Consulting");
+  await page.getByTestId("line-qty-1-0").fill("1");
+  await page.getByTestId("line-rate-1-0").fill("5000");
+
+  // No descriptions yet: the client document has no Description column.
+  await page.getByTestId("open-client-view").click();
+  const doc = page.getByTestId("client-document");
+  await expect(doc).toContainText("Phase 2");
+  const descriptionHeader = lang === "ar" ? "الوصف" : "Description";
+  await expect(doc.getByRole("columnheader", { name: descriptionHeader })).toHaveCount(0);
+  await page.getByTestId("client-view-back").click();
+
+  // Adding one description makes the column appear, with a dash for the other group.
+  await page.getByTestId("program-description-0").fill("Three-day leadership intensive");
+  await page.getByTestId("open-client-view").click();
+  await expect(doc.getByRole("columnheader", { name: descriptionHeader })).toHaveCount(1);
+  await expect(doc).toContainText("Three-day leadership intensive");
+});
+
 test("documents archive files sent proposals and reopens their document", async ({ page }, testInfo) => {
   const lang = langFromProject(testInfo.project.name);
   await gotoWithLanguage(page, "/", lang);
