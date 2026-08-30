@@ -118,13 +118,51 @@ export function newProposal(title: string, scheduleLabel: string, projectType: P
 }
 
 /** Backfills fields added after a proposal was stored (schema drift tolerance). */
+/** Dropdown kinds for what a group of cost lines is called. "program" is stored as "". */
+export const SECTION_KINDS = ["program", "phase", "module", "track", "sprint"] as const;
+export type SectionKind = (typeof SECTION_KINDS)[number];
+
+const LEGACY_SECTION_LABELS: Record<string, string> = {
+  phase: "phase",
+  "المرحلة": "phase",
+  "مرحلة": "phase",
+  module: "module",
+  "الوحدة": "module",
+  "وحدة": "module",
+  track: "track",
+  "المسار": "track",
+  "مسار": "track",
+  sprint: "sprint",
+  "سبرنت": "sprint",
+};
+
+/** Localized display names for the section kinds, from the pricing dictionary. */
+export function sectionKindLabels(p: {
+  program: string;
+  phase: string;
+  module: string;
+  track: string;
+  sprint: string;
+}): Record<SectionKind, string> {
+  return { program: p.program, phase: p.phase, module: p.module, track: p.track, sprint: p.sprint };
+}
+
+/** Resolves a stored sectionLabel ("" = program) to its localized display name. */
+export function sectionKindLabel(
+  stored: string,
+  p: { program: string; phase: string; module: string; track: string; sprint: string },
+): string {
+  const kind = (SECTION_KINDS as readonly string[]).includes(stored) ? (stored as SectionKind) : "program";
+  return sectionKindLabels(p)[kind];
+}
+
 export function normalizeProposal(p: Proposal): Proposal {
-  // Legacy free-text section labels collapse onto the dropdown's two kinds.
+  // Legacy free-text section labels collapse onto the dropdown kinds.
   const rawLabel = typeof p.sectionLabel === "string" ? p.sectionLabel.trim().toLowerCase() : "";
   return {
     ...p,
     projectType: p.projectType === "workshop" ? "workshop" : "custom",
-    sectionLabel: rawLabel === "phase" || rawLabel === "المرحلة" || rawLabel === "مرحلة" ? "phase" : "",
+    sectionLabel: LEGACY_SECTION_LABELS[rawLabel] ?? "",
     programs: p.programs.map((pr) => ({ ...pr, description: typeof pr.description === "string" ? pr.description : "" })),
   };
 }

@@ -140,7 +140,10 @@ describe("project types", () => {
     expect(normalizeProposal({ ...base, sectionLabel: "Phase" }).sectionLabel).toBe("phase");
     expect(normalizeProposal({ ...base, sectionLabel: " phase " }).sectionLabel).toBe("phase");
     expect(normalizeProposal({ ...base, sectionLabel: "المرحلة" }).sectionLabel).toBe("phase");
-    expect(normalizeProposal({ ...base, sectionLabel: "Module" }).sectionLabel).toBe("");
+    expect(normalizeProposal({ ...base, sectionLabel: "Module" }).sectionLabel).toBe("module");
+    expect(normalizeProposal({ ...base, sectionLabel: "المسار" }).sectionLabel).toBe("track");
+    expect(normalizeProposal({ ...base, sectionLabel: "Sprint" }).sectionLabel).toBe("sprint");
+    expect(normalizeProposal({ ...base, sectionLabel: "Workstream" }).sectionLabel).toBe("");
     expect(normalizeProposal({ ...base, sectionLabel: "" }).sectionLabel).toBe("");
   });
 

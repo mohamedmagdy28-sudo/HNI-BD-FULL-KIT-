@@ -14,7 +14,16 @@ import { CostTable } from "./CostTable";
 import { DocumentsList } from "./DocumentsList";
 import { SummaryPanel } from "./SummaryPanel";
 import { debounce, LocalStoragePricingStore, type PricingStore } from "./store";
-import { newId, newProposal, type ProjectType, type Proposal, type Settings } from "./types";
+import {
+  newId,
+  newProposal,
+  SECTION_KINDS,
+  sectionKindLabel,
+  sectionKindLabels,
+  type ProjectType,
+  type Proposal,
+  type Settings,
+} from "./types";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -300,16 +309,19 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
                 <div className="w-36">
                   <span className="block text-[11px] font-medium uppercase tracking-wide text-hni-grey-dark">{p.sectionLabel}</span>
                   <Select
-                    value={current.sectionLabel === "phase" ? "phase" : "program"}
+                    value={current.sectionLabel || "program"}
                     disabled={locked}
-                    onValueChange={(v) => updateCurrent({ sectionLabel: v === "phase" ? "phase" : "" })}
+                    onValueChange={(v) => updateCurrent({ sectionLabel: v === "program" ? "" : v })}
                   >
                     <SelectTrigger className="mt-1 h-8" aria-label={p.sectionLabel} data-testid="section-label">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="program">{p.program}</SelectItem>
-                      <SelectItem value="phase">{p.phase}</SelectItem>
+                      {SECTION_KINDS.map((kind) => (
+                        <SelectItem key={kind} value={kind}>
+                          {sectionKindLabels(p)[kind]}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -374,7 +386,7 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
               programs={current.programs}
               locked={locked}
               seedLabels={current.projectType === "workshop" ? p.workshopLines : []}
-              groupLabel={current.sectionLabel === "phase" ? p.phase : p.program}
+              groupLabel={sectionKindLabel(current.sectionLabel, p)}
               onChange={(programs) => updateCurrent({ programs })}
             />
           </div>

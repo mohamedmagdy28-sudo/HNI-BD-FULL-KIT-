@@ -3,7 +3,7 @@ import { ArrowLeft, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCurrency, useI18n } from "@/lib/i18n";
 import type { CalcResult } from "./calc";
-import type { Proposal } from "./types";
+import { sectionKindLabel, type Proposal } from "./types";
 import { BANK_DETAILS, TERMS_PAGE_1, TERMS_PAGE_2, type TermsSection } from "./template";
 import "./print.css";
 
@@ -116,7 +116,7 @@ export function ClientView({ proposal, result, onBack }: Props) {
   };
 
   const money = (v: number) => formatCurrency(v, locale);
-  const groupLabel = proposal.sectionLabel === "phase" ? p.phase : p.docProgram;
+  const groupLabel = sectionKindLabel(proposal.sectionLabel, p);
   const hasDescriptions = proposal.programs.some((x) => x.description.trim() !== "");
   const proposedIn = proposal.date
     ? new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(new Date(`${proposal.date}T00:00:00`))
