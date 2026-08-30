@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCheck, Copy, Download, Eye, FilePlus2, Files, Trash2, Upload } from "lucide-react";
+import { CheckCheck, Copy, Download, Eye, FilePlus2, Files, ImagePlus, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,6 +13,7 @@ import { ClientView } from "./ClientView";
 import { CostTable } from "./CostTable";
 import { DocumentsList } from "./DocumentsList";
 import { SummaryPanel } from "./SummaryPanel";
+import { fileToLogoDataUrl } from "./logo";
 import { debounce, LocalStoragePricingStore, type PricingStore } from "./store";
 import {
   newId,
@@ -46,6 +47,7 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
   const [storageError, setStorageError] = useState(false);
   const [hadCorruptData, setHadCorruptData] = useState(initialLoad.corruptIds.length > 0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   const save = useMemo(
     () =>
@@ -232,6 +234,23 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
           e.target.value = "";
         }}
       />
+      <input
+        ref={logoInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        aria-hidden
+        tabIndex={-1}
+        data-testid="client-logo-upload"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (!file) return;
+          void fileToLogoDataUrl(file)
+            .then((dataUrl) => updateCurrent({ clientLogo: dataUrl }))
+            .catch(() => toast({ title: p.clientLogoError, variant: "destructive" }));
+        }}
+      />
 
       {storageError && (
         <p role="alert" data-testid="storage-error" className="mb-3 rounded-md bg-[color:var(--status-danger-bg)] px-3 py-2 text-[13px] text-[color:var(--status-danger-fg)]">
@@ -340,6 +359,44 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
                       <SelectItem value="custom">{p.projectTypes.custom}</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="mb-0.5">
+                  <span className="block text-[11px] font-medium uppercase tracking-wide text-hni-grey-dark">{p.clientLogo}</span>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    {current.clientLogo ? (
+                      <>
+                        <img
+                          src={current.clientLogo}
+                          alt={p.clientLogo}
+                          data-testid="client-logo-preview"
+                          className="h-8 w-auto max-w-28 rounded border border-line-1 bg-surface-0 object-contain px-1"
+                        />
+                        {!locked && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-hni-grey-mid hover:text-[color:var(--status-danger-fg)]"
+                            aria-label={p.clientLogoRemove}
+                            data-testid="client-logo-remove"
+                            onClick={() => updateCurrent({ clientLogo: null })}
+                          >
+                            <X className="size-3.5" aria-hidden />
+                          </Button>
+                        )}
+                      </>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8"
+                        disabled={locked}
+                        onClick={() => logoInputRef.current?.click()}
+                      >
+                        <ImagePlus className="size-4" aria-hidden />
+                        {p.clientLogo}
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <span data-testid="sent-badge" className="mb-1.5">
                   <StatusBadge tone={locked ? "success" : "neutral"}>{locked ? p.sent : p.draft}</StatusBadge>

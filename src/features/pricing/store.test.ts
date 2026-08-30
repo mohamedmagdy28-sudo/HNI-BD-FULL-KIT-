@@ -147,6 +147,18 @@ describe("project types", () => {
     expect(normalizeProposal({ ...base, sectionLabel: "" }).sectionLabel).toBe("");
   });
 
+  it("normalizeProposal keeps only valid image data URLs as client logos", () => {
+    const base = newProposal("X", "On signature");
+    expect(normalizeProposal({ ...base, clientLogo: "data:image/png;base64,AAAA" }).clientLogo).toBe(
+      "data:image/png;base64,AAAA",
+    );
+    expect(normalizeProposal({ ...base, clientLogo: "javascript:alert(1)" }).clientLogo).toBeNull();
+    expect(normalizeProposal({ ...base, clientLogo: "https://x/logo.png" }).clientLogo).toBeNull();
+    const legacy = { ...base } as Record<string, unknown>;
+    delete legacy.clientLogo;
+    expect(normalizeProposal(legacy as unknown as Proposal).clientLogo).toBeNull();
+  });
+
   it("normalizeProposal backfills projectType as custom for pre-field proposals", () => {
     const legacy = { ...newProposal("Old", "On signature") } as Record<string, unknown>;
     delete legacy.projectType;

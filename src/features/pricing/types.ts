@@ -56,6 +56,8 @@ export type Proposal = {
   projectType: ProjectType;
   /** What a group of cost lines is called: "phase" renders localized Phase; anything else renders localized Program. */
   sectionLabel: string;
+  /** Client's logo as a downscaled data URL, shown on the cover next to the HNI logo. */
+  clientLogo: string | null;
   /** Canonical stored pricing field. Editing target margin writes back the implied markup. */
   markupPct: number;
   discount: Discount;
@@ -108,6 +110,7 @@ export function newProposal(title: string, scheduleLabel: string, projectType: P
     currency: "SAR",
     projectType,
     sectionLabel: "",
+    clientLogo: null,
     markupPct: 35,
     discount: { type: "percent", value: 0 },
     vatPct: VAT_DEFAULT,
@@ -163,6 +166,7 @@ export function normalizeProposal(p: Proposal): Proposal {
     ...p,
     projectType: p.projectType === "workshop" ? "workshop" : "custom",
     sectionLabel: LEGACY_SECTION_LABELS[rawLabel] ?? "",
+    clientLogo: typeof p.clientLogo === "string" && p.clientLogo.startsWith("data:image/") ? p.clientLogo : null,
     programs: p.programs.map((pr) => ({ ...pr, description: typeof pr.description === "string" ? pr.description : "" })),
   };
 }

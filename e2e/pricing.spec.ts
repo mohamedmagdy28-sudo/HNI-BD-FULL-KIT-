@@ -228,6 +228,34 @@ test("section label renames groups everywhere; description column appears only w
   await expect(doc).toContainText("Three-day leadership intensive");
 });
 
+test("client logo uploads, appears on the cover, and can be removed", async ({ page }, testInfo) => {
+  const lang = langFromProject(testInfo.project.name);
+  await gotoWithLanguage(page, "/", lang);
+  await createProposalWithProgram(page);
+
+  // A real 1x1 PNG; the app downscales through a canvas and stores a data URL.
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  await page.getByTestId("client-logo-upload").setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: png });
+  await expect(page.getByTestId("client-logo-preview")).toBeVisible();
+
+  // The cover shows the co-brand lockup; autosave keeps it across reloads.
+  await page.getByTestId("open-client-view").click();
+  await expect(page.getByTestId("doc-client-logo")).toBeVisible();
+  await page.getByTestId("client-view-back").click();
+  await page.waitForTimeout(400);
+  await page.reload();
+  await expect(page.getByTestId("client-logo-preview")).toBeVisible();
+
+  // Removing it clears the cover again.
+  await page.getByTestId("client-logo-remove").click();
+  await expect(page.getByTestId("client-logo-preview")).toHaveCount(0);
+  await page.getByTestId("open-client-view").click();
+  await expect(page.getByTestId("doc-client-logo")).toHaveCount(0);
+});
+
 test("documents archive files sent proposals and reopens their document", async ({ page }, testInfo) => {
   const lang = langFromProject(testInfo.project.name);
   await gotoWithLanguage(page, "/", lang);

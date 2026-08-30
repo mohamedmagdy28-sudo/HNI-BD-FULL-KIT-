@@ -140,7 +140,21 @@ export function ClientView({ proposal, result, onBack }: Props) {
           {/* Page 1 — Cover: full-bleed skyline art, title block on the light sky area. */}
           <DocPage>
             <img src="/brand/proposal-cover.jpg" alt="" className="absolute inset-0 h-full w-full object-cover" aria-hidden />
-            <img src="/brand/logo-primary.svg" alt={p.docFooter} className="absolute left-[0.95in] top-[1.25in] h-[0.75in] w-auto" />
+            {/* Co-brand lockup: HNI mark, thin divider, client logo when provided. */}
+            <div className="absolute left-[0.95in] top-[1.25in] flex items-center gap-[0.22in]">
+              <img src="/brand/logo-primary.svg" alt={p.docFooter} className="h-[0.75in] w-auto" />
+              {proposal.clientLogo && (
+                <>
+                  <div className="h-[0.6in] w-px bg-[#999]" aria-hidden />
+                  <img
+                    src={proposal.clientLogo}
+                    alt={proposal.clientName || p.clientLogo}
+                    data-testid="doc-client-logo"
+                    className="h-[0.6in] w-auto max-w-[2.4in] object-contain"
+                  />
+                </>
+              )}
+            </div>
             <div dir="ltr" className="absolute left-[0.46in] top-[2.85in] w-[7.6in] text-left">
               <h1 className="text-[34pt] font-bold leading-tight text-hni-black">{proposal.title}</h1>
               <p className="mt-[0.2in] text-[24pt] font-bold text-hni-magenta">{p.docTitle}</p>

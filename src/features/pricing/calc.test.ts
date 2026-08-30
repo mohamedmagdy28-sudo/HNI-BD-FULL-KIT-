@@ -38,6 +38,7 @@ function makeProposal(overrides: Partial<Proposal> = {}): Proposal {
     currency: "SAR",
     projectType: "custom",
     sectionLabel: "",
+    clientLogo: null,
     markupPct: 35,
     discount: { type: "percent", value: 0 },
     vatPct: 15,
