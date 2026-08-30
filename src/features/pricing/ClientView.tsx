@@ -145,12 +145,14 @@ export function ClientView({ proposal, result, onBack }: Props) {
               <img src="/brand/logo-primary.svg" alt={p.docFooter} className="h-[0.75in] w-auto" />
               {proposal.clientLogo && (
                 <>
-                  <div className="h-[0.6in] w-px bg-[#999]" aria-hidden />
+                  <div className="h-[0.62in] w-px bg-[#999]" aria-hidden />
+                  {/* Same visual box as the HNI lockup (0.75in tall, ~2in wide) so the
+                      two brands read as equals regardless of the logo's aspect ratio. */}
                   <img
                     src={proposal.clientLogo}
                     alt={proposal.clientName || p.clientLogo}
                     data-testid="doc-client-logo"
-                    className="h-[0.6in] w-auto max-w-[2.4in] object-contain"
+                    className="h-[0.75in] w-auto max-w-[2in] object-contain"
                   />
                 </>
               )}
