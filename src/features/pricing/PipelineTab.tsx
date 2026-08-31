@@ -83,8 +83,12 @@ export function PipelineTab({
   const importInputRef = useRef<HTMLInputElement>(null);
   const [drawerRow, setDrawerRow] = useState<PipelineRowData | null>(null);
   const [showTargets, setShowTargets] = useState(false);
+  const [stageFilter, setStageFilter] = useState<string>("all");
 
   const rows = useMemo(() => buildRows(proposals, externals), [proposals, externals]);
+  // Filter narrows the TABLE only; KPI totals stay global so a filtered view
+  // never misreads as a change in achievement.
+  const visibleRows = stageFilter === "all" ? rows : rows.filter((r) => r.stage === stageFilter);
   const totals = useMemo(() => computeTotals(rows, settings.targets), [rows, settings.targets]);
   const money = (v: number) => formatCurrency(v, locale);
   const stageLabel = (s: string) => (p.stageLabels as Record<string, string>)[s] ?? s;
@@ -280,6 +284,24 @@ export function PipelineTab({
       )}
 
       <div className="flex flex-wrap items-center gap-2">
+        <Select value={stageFilter} onValueChange={setStageFilter}>
+          <SelectTrigger className="h-8 w-48" aria-label={p.filterByStage} data-testid="stage-filter">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{p.filterAllStages}</SelectItem>
+            {PIPELINE_STAGES.map((s) => (
+              <SelectItem key={s} value={s}>
+                {stageLabel(s)} ({rows.filter((r) => r.stage === s).length})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {stageFilter !== "all" && (
+          <span className="text-[12px] text-hni-grey-dark" data-testid="stage-filter-count">
+            {p.filterShowing.replace("{n}", String(visibleRows.length)).replace("{total}", String(rows.length))}
+          </span>
+        )}
         <Button variant="outline" size="sm" data-testid="targets-toggle" aria-pressed={showTargets} onClick={() => setShowTargets((v) => !v)}>
           <Target className="size-4" aria-hidden />
           {p.targets}
@@ -349,7 +371,14 @@ export function PipelineTab({
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
+              {visibleRows.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-3 py-6 text-center text-[13px] text-hni-grey-dark" data-testid="filter-empty">
+                    {p.filterNoMatches}
+                  </td>
+                </tr>
+              )}
+              {visibleRows.map((row) => (
                 <tr key={row.id} className="border-b border-line-1 last:border-b-0 hover:bg-surface-1" data-testid={`pipeline-row-${row.id}`}>
                   <td className="cursor-pointer px-3 py-2 font-medium text-hni-black" onClick={() => setDrawerRow(row)}>
                     {row.company || "—"}

@@ -25,7 +25,7 @@ async function createProposalWithProgram(page: Page, client = "Saudi National Ba
 }
 
 async function setStage(page: Page, lang: string, stage: "Proposal" | "Won" | "Lost") {
-  await page.locator("[data-testid^='stage-']").first().click();
+  await page.locator("[data-testid^='pipeline-row-'] [data-testid^='stage-']").first().click();
   await page.getByRole("option", { name: STAGE_LABELS[lang][stage], exact: true }).click();
 }
 
@@ -251,6 +251,47 @@ test("sent-lock: quote fields stay locked while pipeline fields stay editable", 
   await expect(page.getByTestId("locked-hint")).toBeVisible();
   await expect(page.getByTestId("line-rate-0-0")).toBeDisabled();
   await expect(page.getByTestId("markup-input")).toBeDisabled();
+});
+
+test("stage filter narrows the table but never the KPI totals", async ({ page }, testInfo) => {
+  const lang = langFromProject(testInfo.project.name);
+  await gotoWithLanguage(page, "/", lang);
+
+  // Two proposals in different stages.
+  await createProposalWithProgram(page, "Won Co", "Won Deal");
+  await page.getByTestId("pipeline-stage-edit").click();
+  await page.getByRole("option", { name: STAGE_LABELS[lang].Won, exact: true }).click();
+  await page.getByTestId("new-proposal").click();
+  await page.getByTestId("add-program").click();
+  await page.getByTestId("line-rate-0-0").fill("9000");
+  await page.getByTestId("line-qty-0-0").fill("3");
+  await page.getByTestId("client-name").fill("Open Co");
+  await page.getByTestId("pipeline-stage-edit").click();
+  await page.getByRole("option", { name: STAGE_LABELS[lang].Proposal, exact: true }).click();
+  await page.waitForTimeout(400);
+
+  await page.getByTestId("pipeline-toggle").click();
+  await expect(page.locator("[data-testid^='pipeline-row-']")).toHaveCount(2);
+  const achievedBefore = digits(await page.getByTestId("kpi-achieved-rev").locator(".tabular").first().textContent());
+
+  // Filter to Won: one row, same KPIs, visible count note.
+  await page.getByTestId("stage-filter").click();
+  await page.getByRole("option", { name: new RegExp(STAGE_LABELS[lang].Won) }).click();
+  await expect(page.locator("[data-testid^='pipeline-row-']")).toHaveCount(1);
+  await expect(page.locator("[data-testid^='pipeline-row-']")).toContainText("Won Co");
+  await expect(page.getByTestId("stage-filter-count")).toBeVisible();
+  expect(digits(await page.getByTestId("kpi-achieved-rev").locator(".tabular").first().textContent())).toBe(achievedBefore);
+
+  // A stage with no deals shows the in-table empty message.
+  await page.getByTestId("stage-filter").click();
+  await page.getByRole("option", { name: new RegExp(STAGE_LABELS[lang].Lost) }).click();
+  await expect(page.locator("[data-testid^='pipeline-row-']")).toHaveCount(0);
+  await expect(page.getByTestId("filter-empty")).toBeVisible();
+
+  // Back to all stages restores both rows.
+  await page.getByTestId("stage-filter").click();
+  await page.getByRole("option").first().click();
+  await expect(page.locator("[data-testid^='pipeline-row-']")).toHaveCount(2);
 });
 
 test("deleting a Won proposal requires an explicit confirmation", async ({ page }, testInfo) => {
