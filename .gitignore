@@ -30,3 +30,4 @@ dist-ssr
 test-results
 playwright-report
 bundle.html
+.github/
