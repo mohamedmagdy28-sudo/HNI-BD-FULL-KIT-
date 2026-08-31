@@ -64,6 +64,12 @@ export type PipelineInfo = {
   stage?: PipelineStage;
   /** Integer percent 0-100. */
   winningProbability?: number;
+  /**
+   * Manual GP% for the pipeline, overriding the costing-derived margin
+   * (user rule 2026-08-31: the reported GP is BD's call). undefined/null =
+   * use the derived margin.
+   */
+  gpPctOverride?: number | null;
   deliveryStart?: string;
   deliveryEnd?: string;
   poNumber?: string;

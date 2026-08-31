@@ -523,29 +523,33 @@ export function PipelineTab({
                     {row.value != null ? <bdi>{money(row.value)}</bdi> : "—"}
                   </td>
                   <td className="px-2 py-1.5 text-end">
-                    {row.kind === "external" && row.external ? (
-                      <div className="relative">
-                        <Input
-                          type="number"
-                          min={0}
-                          max={100}
-                          step="0.1"
-                          value={row.external.gpPct ?? ""}
-                          aria-label={p.plGpPct}
-                          data-testid={`gp-pct-${row.id}`}
-                          onChange={(e) => {
-                            const v = numOrNull(e.target.value);
-                            const bounded = v == null ? null : Math.min(100, Math.max(0, v));
-                            onUpdateExternal({ ...row.external!, gpPct: bounded });
-                          }}
-                          className="tabular h-8 pe-6 text-end"
-                        />
-                        <span aria-hidden className="pointer-events-none absolute end-2 top-1/2 -translate-y-1/2 text-[12px] text-hni-grey-mid">%</span>
-                      </div>
-                    ) : (
-                      // Proposal GP% is derived from the costing; change it there, not here.
-                      <span className="tabular text-hni-grey-dark">{row.gpPct != null ? `${row.gpPct.toFixed(1)}%` : "—"}</span>
-                    )}
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step="0.1"
+                        // Proposals: typed value = manual override; the
+                        // costing-derived margin shows as placeholder so
+                        // clearing the field reverts without snap-back.
+                        value={
+                          row.kind === "external"
+                            ? (row.external!.gpPct ?? "")
+                            : (row.proposal!.pipeline.gpPctOverride ?? "")
+                        }
+                        placeholder={row.kind === "proposal" && row.gpPct != null ? row.gpPct.toFixed(1) : undefined}
+                        aria-label={p.plGpPct}
+                        data-testid={`gp-pct-${row.id}`}
+                        onChange={(e) => {
+                          const v = numOrNull(e.target.value);
+                          const bounded = v == null ? null : Math.min(100, Math.max(0, v));
+                          if (row.kind === "proposal") onUpdatePipeline(row.id, { gpPctOverride: bounded });
+                          else if (row.external) onUpdateExternal({ ...row.external, gpPct: bounded });
+                        }}
+                        className="tabular h-8 pe-6 text-end"
+                      />
+                      <span aria-hidden className="pointer-events-none absolute end-2 top-1/2 -translate-y-1/2 text-[12px] text-hni-grey-mid">%</span>
+                    </div>
                   </td>
                   <td className="tabular px-3 py-2 text-end text-hni-grey-dark" data-testid={`gp-amount-${row.id}`}>
                     {row.gpAmount != null ? <bdi>{money(row.gpAmount)}</bdi> : "—"}

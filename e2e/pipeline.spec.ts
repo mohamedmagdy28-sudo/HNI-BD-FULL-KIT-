@@ -274,8 +274,21 @@ test("mark as sent puts the proposal in the pipeline with its real amount and de
   await expect(row).toHaveCount(1);
   await expect(row).toContainText("Maaden Phosphate");
   await expect(row).toContainText("36,450"); // netPrice, not 0
-  await expect(row).toContainText("25.9%"); // derived GP%, not empty
+  await expect(row).toContainText("9,450"); // derived GP amount, not empty
   expect(digits(await page.getByTestId("kpi-open").locator(".tabular").first().textContent())).toBe(36450);
+
+  // GP% on a proposal row is editable (post-execution adhocs change it):
+  // override 40 -> GP amount recomputes; clearing reverts to derived.
+  const gpInput = row.locator("[data-testid^='gp-pct-']");
+  await expect(gpInput).toHaveAttribute("placeholder", "25.9");
+  await gpInput.fill("40");
+  expect(digits(await row.locator("[data-testid^='gp-amount-']").textContent())).toBe(Math.round(36450 * 0.4));
+  await page.waitForTimeout(400);
+  await page.reload();
+  await page.getByTestId("pipeline-toggle").click();
+  await expect(page.locator("[data-testid^='gp-pct-']").first()).toHaveValue("40");
+  await page.locator("[data-testid^='gp-pct-']").first().fill("");
+  expect(digits(await page.locator("[data-testid^='gp-amount-']").first().textContent())).toBe(9450); // derived again
 
   // A stage chosen BEFORE sending is never overwritten by mark-as-sent.
   await page.getByTestId("pipeline-toggle").click();

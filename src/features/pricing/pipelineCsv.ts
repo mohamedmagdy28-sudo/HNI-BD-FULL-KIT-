@@ -261,8 +261,10 @@ export function proposalSheetRow(p: Proposal, result: CalcResult, targets: Targe
     pl.poNumber ?? "",
     "SAR",
     String(result.netPrice),
-    pct(result.marginPct, 1),
-    String(result.marginAmount),
+    // Manual GP override (BD's reported figure) beats the derived margin,
+    // matching the dashboard.
+    pct(pl.gpPctOverride ?? result.marginPct, 1),
+    String(pl.gpPctOverride != null ? Math.round((result.netPrice * pl.gpPctOverride) / 100) : result.marginAmount),
     targets.revenueTarget ? pct((result.netPrice / targets.revenueTarget) * 100, 1) : "",
     pl.projectStatus ?? "",
     pl.notes ?? "",

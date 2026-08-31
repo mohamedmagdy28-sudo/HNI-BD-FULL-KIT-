@@ -75,6 +75,18 @@ describe("buildRows", () => {
     expect(rows[0].winningProbability).toBe(40);
   });
 
+  it("a manual GP override on a proposal beats the derived margin; clearing reverts", () => {
+    const derived = buildRows([makeProposal({ stage: "Won", decidedAt: "2026-08-01" })], [])[0];
+    expect(derived.gpAmount).toBe(50000); // costing-derived margin
+    const overridden = buildRows([makeProposal({ stage: "Won", decidedAt: "2026-08-01", gpPctOverride: 40 })], [])[0];
+    expect(overridden.gpPct).toBe(40);
+    expect(overridden.gpAmount).toBe(60000); // 150,000 x 40%
+    const t = computeTotals([overridden], DEFAULT_TARGETS);
+    expect(t.achievedGp).toBe(60000);
+    const cleared = buildRows([makeProposal({ stage: "Won", decidedAt: "2026-08-01", gpPctOverride: null })], [])[0];
+    expect(cleared.gpAmount).toBe(50000);
+  });
+
   it("effectiveDate prefers decidedAt over the proposal date and flags defaulted Won dates", () => {
     const decided = makeProposal({ stage: "Won", decidedAt: "2026-08-20" });
     const defaulted = makeProposal({ stage: "Won" });

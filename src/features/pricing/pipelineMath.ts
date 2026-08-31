@@ -51,6 +51,11 @@ export function buildRows(proposals: Proposal[], externals: ExternalDeal[]): Pip
   for (const p of proposals) {
     if (!inPipeline(p)) continue;
     const result = calc(p);
+    // Reported GP is BD's call: a manual override beats the costing-derived
+    // margin; without one, the derived margin IS the actual.
+    const override = p.pipeline.gpPctOverride;
+    const gpPct = override ?? result.marginPct;
+    const gpAmount = override != null ? Math.round((result.netPrice * override) / 100) : result.marginAmount;
     rows.push({
       kind: "proposal",
       id: p.id,
@@ -59,8 +64,8 @@ export function buildRows(proposals: Proposal[], externals: ExternalDeal[]): Pip
       stage: p.pipeline.stage!,
       winningProbability: p.pipeline.winningProbability ?? null,
       value: result.netPrice,
-      gpAmount: result.marginAmount,
-      gpPct: result.marginPct,
+      gpAmount,
+      gpPct,
       effectiveDate: p.pipeline.decidedAt ?? p.date ?? null,
       dateDefaulted: !p.pipeline.decidedAt && (p.pipeline.stage === "Won" || p.pipeline.stage === "Lost"),
       excluded: false,

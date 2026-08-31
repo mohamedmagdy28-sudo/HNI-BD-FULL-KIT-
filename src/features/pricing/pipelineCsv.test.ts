@@ -225,6 +225,14 @@ describe("sheet row export", () => {
     expect(cells[16]).toBe(`${((r.netPrice / 1000000) * 100).toFixed(1)}%`); // contribution
   });
 
+  it("proposalSheetRow exports the manual GP override when set", () => {
+    const p = makeProposal({ pipeline: { stage: "Won", gpPctOverride: 40 } });
+    const r = calc(p);
+    const cells = proposalSheetRow(p, r, DEFAULT_TARGETS);
+    expect(cells[14]).toBe("40.0%");
+    expect(cells[15]).toBe(String(Math.round(r.netPrice * 0.4)));
+  });
+
   it("contribution cell is empty without a revenue target", () => {
     const p = makeProposal({ pipeline: { stage: "Won" } });
     const cells = proposalSheetRow(p, calc(p), DEFAULT_TARGETS);
