@@ -10,15 +10,27 @@
 // A corrupted key loses one proposal, not the store; corrupt ids are reported
 // so the screen can surface recovery instead of crashing.
 
-import { asImageDataUrl, DEFAULT_SETTINGS, normalizeProposal, type Proposal, type Settings } from "./types";
+import {
+  asImageDataUrl,
+  DEFAULT_SETTINGS,
+  DEFAULT_TARGETS,
+  normalizeProposal,
+  type ExternalDeal,
+  type Proposal,
+  type Settings,
+  type Targets,
+} from "./types";
 
 const PREFIX = "hni.pricing.v1";
 const INDEX_KEY = `${PREFIX}.index`;
 const SETTINGS_KEY = `${PREFIX}.settings`;
+const EXTERNAL_INDEX_KEY = `${PREFIX}.externalIndex`;
 const proposalKey = (id: string) => `${PREFIX}.proposal.${id}`;
+const externalKey = (id: string) => `${PREFIX}.external.${id}`;
 
 export type LoadResult = {
   proposals: Proposal[];
+  externalDeals: ExternalDeal[];
   settings: Settings;
   /** Ids whose stored JSON failed to parse; surfaced for recovery, never fatal. */
   corruptIds: string[];
@@ -29,17 +41,39 @@ export interface PricingStore {
   /** Returns false when the write failed (quota, disabled storage). */
   saveProposal(proposal: Proposal, order: string[]): boolean;
   deleteProposal(id: string, order: string[]): boolean;
+  /** Replaces the whole external-deal set (import is a snapshot; design T1). */
+  replaceExternalDeals(deals: ExternalDeal[]): boolean;
+  deleteExternalDeal(id: string): boolean;
   saveSettings(settings: Settings): boolean;
   exportAll(): string;
   /** Replaces the whole store with the imported payload. Throws on invalid input. */
   importAll(json: string): LoadResult;
 }
 
+/** v2 adds externalDeals and settings.targets; v1 payloads still import (design T3.5). */
 type ExportPayload = {
-  version: 1;
+  version: 1 | 2;
   settings: Settings;
   proposals: Proposal[];
+  externalDeals?: ExternalDeal[];
 };
+
+function normalizeTargets(raw: unknown): Targets {
+  if (typeof raw !== "object" || raw === null) return { ...DEFAULT_TARGETS };
+  const t = raw as Partial<Targets>;
+  return {
+    periodStart: typeof t.periodStart === "string" ? t.periodStart : null,
+    periodEnd: typeof t.periodEnd === "string" ? t.periodEnd : null,
+    revenueTarget: typeof t.revenueTarget === "number" ? t.revenueTarget : null,
+    gpTarget: typeof t.gpTarget === "number" ? t.gpTarget : null,
+  };
+}
+
+function isExternalDeal(value: unknown): value is ExternalDeal {
+  if (typeof value !== "object" || value === null) return false;
+  const d = value as Record<string, unknown>;
+  return typeof d.id === "string" && typeof d.company === "string" && typeof d.projectName === "string";
+}
 
 function isProposal(value: unknown): value is Proposal {
   if (typeof value !== "object" || value === null) return false;
@@ -108,6 +142,30 @@ export class LocalStoragePricingStore implements PricingStore {
       }
     }
 
+    const externalDeals: ExternalDeal[] = [];
+    const rawExtIndex = this.read(EXTERNAL_INDEX_KEY);
+    if (rawExtIndex) {
+      try {
+        const parsed: unknown = JSON.parse(rawExtIndex);
+        if (Array.isArray(parsed)) {
+          for (const id of parsed) {
+            if (typeof id !== "string") continue;
+            const raw = this.read(externalKey(id));
+            if (raw === null) continue;
+            try {
+              const deal: unknown = JSON.parse(raw);
+              if (isExternalDeal(deal)) externalDeals.push(deal);
+              else corruptIds.push(id);
+            } catch {
+              corruptIds.push(id);
+            }
+          }
+        }
+      } catch {
+        corruptIds.push("externalIndex");
+      }
+    }
+
     let settings: Settings = { ...DEFAULT_SETTINGS };
     const rawSettings = this.read(SETTINGS_KEY);
     if (rawSettings) {
@@ -119,12 +177,41 @@ export class LocalStoragePricingStore implements PricingStore {
         }
         settings.signatureImage = asImageDataUrl(parsed.signatureImage);
         settings.stampImage = asImageDataUrl(parsed.stampImage);
+        settings.targets = normalizeTargets(parsed.targets);
       } catch {
         corruptIds.push("settings");
       }
     }
 
-    return { proposals, settings, corruptIds };
+    return { proposals, externalDeals, settings, corruptIds };
+  }
+
+  replaceExternalDeals(deals: ExternalDeal[]): boolean {
+    const existing = this.read(EXTERNAL_INDEX_KEY);
+    if (existing) {
+      try {
+        const parsed: unknown = JSON.parse(existing);
+        if (Array.isArray(parsed)) for (const id of parsed) if (typeof id === "string") this.remove(externalKey(id));
+      } catch {
+        /* replaced below regardless */
+      }
+    }
+    let ok = true;
+    for (const deal of deals) ok = this.write(externalKey(deal.id), JSON.stringify(deal)) && ok;
+    return this.write(EXTERNAL_INDEX_KEY, JSON.stringify(deals.map((d) => d.id))) && ok;
+  }
+
+  deleteExternalDeal(id: string): boolean {
+    this.remove(externalKey(id));
+    const raw = this.read(EXTERNAL_INDEX_KEY);
+    let ids: string[] = [];
+    try {
+      const parsed: unknown = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(parsed)) ids = parsed.filter((v): v is string => typeof v === "string");
+    } catch {
+      ids = [];
+    }
+    return this.write(EXTERNAL_INDEX_KEY, JSON.stringify(ids.filter((v) => v !== id)));
   }
 
   saveProposal(proposal: Proposal, order: string[]): boolean {
@@ -143,8 +230,8 @@ export class LocalStoragePricingStore implements PricingStore {
   }
 
   exportAll(): string {
-    const { proposals, settings } = this.loadAll();
-    const payload: ExportPayload = { version: 1, settings, proposals };
+    const { proposals, externalDeals, settings } = this.loadAll();
+    const payload: ExportPayload = { version: 2, settings, proposals, externalDeals };
     return JSON.stringify(payload, null, 2);
   }
 
@@ -152,9 +239,12 @@ export class LocalStoragePricingStore implements PricingStore {
     const parsed: unknown = JSON.parse(json);
     if (typeof parsed !== "object" || parsed === null) throw new Error("invalid payload");
     const payload = parsed as Partial<ExportPayload>;
-    if (payload.version !== 1 || !Array.isArray(payload.proposals)) throw new Error("invalid payload");
+    if ((payload.version !== 1 && payload.version !== 2) || !Array.isArray(payload.proposals)) {
+      throw new Error("invalid payload");
+    }
     const proposals = payload.proposals.filter(isProposal).map(normalizeProposal);
     if (proposals.length !== payload.proposals.length) throw new Error("invalid proposal in payload");
+    const externalDeals = Array.isArray(payload.externalDeals) ? payload.externalDeals.filter(isExternalDeal) : [];
 
     const settings: Settings = {
       marginFloorPct:
@@ -164,6 +254,7 @@ export class LocalStoragePricingStore implements PricingStore {
       lastExportAt: payload.settings?.lastExportAt ?? null,
       signatureImage: asImageDataUrl(payload.settings?.signatureImage),
       stampImage: asImageDataUrl(payload.settings?.stampImage),
+      targets: normalizeTargets(payload.settings?.targets),
     };
 
     // Replace-all semantics: import is a recovery operation.
@@ -171,9 +262,10 @@ export class LocalStoragePricingStore implements PricingStore {
     for (const p of existing.proposals) this.remove(proposalKey(p.id));
     for (const p of proposals) this.write(proposalKey(p.id), JSON.stringify(p));
     this.write(INDEX_KEY, JSON.stringify(proposals.map((p) => p.id)));
+    this.replaceExternalDeals(externalDeals);
     this.write(SETTINGS_KEY, JSON.stringify(settings));
 
-    return { proposals, settings, corruptIds: [] };
+    return { proposals, externalDeals, settings, corruptIds: [] };
   }
 }
 

@@ -66,4 +66,10 @@
 **Context:** User holds an Assessment Center proposal PDF containing that variant's terms; collect it at session start. Extends projectType or adds a parallel termsVariant field; assumptions likely `string[]` on Proposal with a small editor. Run /office-hours for this feature.
 **Effort:** M · **Priority:** P2 · **Depends on:** PPT export shipped; Assessment Center PDF provided.
 
+### Pipeline first paste test (user assignment)
+
+**What:** Import the real Google Sheet pipeline tab (File > Download > CSV of the pipeline tab) via Pipeline > Import sheet CSV, reconcile the dashboard totals against the sheet's own sums, then Copy rows and paste into the sheet to check cell formats land correctly.
+**Why:** The build gate was waived; the export format defaults (percents "50%", plain integer money, DD/MM dates) are educated guesses isolated in `src/features/pricing/pipelineCsv.ts` and must be tuned against reality.
+**Effort:** S · **Priority:** P1 · **Depends on:** pipeline feature shipped (done).
+
 ## Completed

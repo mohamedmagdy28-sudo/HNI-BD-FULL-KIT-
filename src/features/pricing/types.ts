@@ -38,6 +38,82 @@ export type Program = {
   costLines: CostLine[];
 };
 
+/** The pipeline sheet's exact stage strings; stored and exported verbatim so the sheet's dropdown validation keeps working. UI shows localized labels. */
+export const PIPELINE_STAGES = [
+  "Proposal",
+  "Initial Negotiation",
+  "Final Negotiation",
+  "Verbal Awarding",
+  "Won",
+  "Lost",
+] as const;
+export type PipelineStage = (typeof PIPELINE_STAGES)[number];
+export const OPEN_STAGES: readonly PipelineStage[] = ["Proposal", "Initial Negotiation", "Final Negotiation", "Verbal Awarding"];
+
+/**
+ * Sales-journey state on a proposal. Deliberately editable after Mark-as-sent:
+ * the sent-lock guarantees the QUOTED DOCUMENT, not the deal's later journey
+ * (design: docs/designs/pipeline.md, sent-lock amendment). Writes go through
+ * the structural updatePipeline path only.
+ */
+export type PipelineInfo = {
+  source?: string;
+  dealType?: string;
+  sector?: string;
+  primaryService?: string;
+  stage?: PipelineStage;
+  /** Integer percent 0-100. */
+  winningProbability?: number;
+  deliveryStart?: string;
+  deliveryEnd?: string;
+  poNumber?: string;
+  projectStatus?: string;
+  notes?: string;
+  /** Auto-stamped when stage becomes Won/Lost; cleared on revert to an open stage; a manual edit is never overwritten. */
+  decidedAt?: string | null;
+  /** Stamp of the last Copy-rows export that included this row (new-since-last-copy default). */
+  copiedAt?: string | null;
+};
+
+/** A row imported from the pipeline sheet that has no app proposal. One-time backfill; never merged into proposals. */
+export type ExternalDeal = {
+  id: string;
+  importedAt: string;
+  date: string;
+  source: string;
+  dealType: string;
+  sector: string;
+  primaryService: string;
+  company: string;
+  projectName: string;
+  stage: PipelineStage | "";
+  winningProbability: number | null;
+  deliveryStart: string;
+  deliveryEnd: string;
+  poNumber: string;
+  currency: string;
+  dealValue: number | null;
+  gpPct: number | null;
+  gpAmount: number | null;
+  projectStatus: string;
+  notes: string;
+  flags: {
+    /** Value/GP cell unparseable: excluded from sums, visible in the excluded note. */
+    badValue?: boolean;
+    /** Date unparseable: excluded from period math. */
+    badDate?: boolean;
+    /** Currency is not SAR: excluded from sums (values would mix denominations). */
+    nonSar?: boolean;
+  };
+};
+
+export type Targets = {
+  periodStart: string | null;
+  periodEnd: string | null;
+  revenueTarget: number | null;
+  gpTarget: number | null;
+};
+
 export type ScheduleItem = {
   id: string;
   label: string;
@@ -66,6 +142,8 @@ export type Proposal = {
   programs: Program[];
   /** Set by the explicit Mark-as-sent action; a sent proposal is locked read-only. */
   sentAt: string | null;
+  /** Sales pipeline state; {} until the user sets a field. Membership rule: in the pipeline iff stage is set. */
+  pipeline: PipelineInfo;
 };
 
 export type Settings = {
@@ -81,6 +159,15 @@ export type Settings = {
    */
   signatureImage: string | null;
   stampImage: string | null;
+  /** Achievement targets for the pipeline dashboard. */
+  targets: Targets;
+};
+
+export const DEFAULT_TARGETS: Targets = {
+  periodStart: null,
+  periodEnd: null,
+  revenueTarget: null,
+  gpTarget: null,
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -88,6 +175,7 @@ export const DEFAULT_SETTINGS: Settings = {
   lastExportAt: null,
   signatureImage: null,
   stampImage: null,
+  targets: DEFAULT_TARGETS,
 };
 
 /** Accepts only embedded image data, so imported backups cannot inject scriptable URLs. */
@@ -132,6 +220,7 @@ export function newProposal(title: string, scheduleLabel: string, projectType: P
     schedule: [{ id: newId(), label: scheduleLabel, percent: 100 }],
     programs: [],
     sentAt: null,
+    pipeline: {},
   };
 }
 
@@ -177,11 +266,21 @@ export function sectionKindLabel(
 export function normalizeProposal(p: Proposal): Proposal {
   // Legacy free-text section labels collapse onto the dropdown kinds.
   const rawLabel = typeof p.sectionLabel === "string" ? p.sectionLabel.trim().toLowerCase() : "";
+  const rawPipeline = typeof p.pipeline === "object" && p.pipeline !== null ? p.pipeline : {};
+  const stage = (PIPELINE_STAGES as readonly string[]).includes(rawPipeline.stage as string)
+    ? (rawPipeline.stage as PipelineStage)
+    : undefined;
   return {
     ...p,
     projectType: p.projectType === "workshop" ? "workshop" : "custom",
     sectionLabel: LEGACY_SECTION_LABELS[rawLabel] ?? "",
     clientLogo: asImageDataUrl(p.clientLogo),
+    pipeline: { ...rawPipeline, stage },
     programs: p.programs.map((pr) => ({ ...pr, description: typeof pr.description === "string" ? pr.description : "" })),
   };
+}
+
+/** Membership rule: a proposal is in the pipeline iff its stage is set (design T3.6). */
+export function inPipeline(p: Proposal): boolean {
+  return p.pipeline.stage !== undefined;
 }

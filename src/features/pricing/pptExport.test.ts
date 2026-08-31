@@ -52,6 +52,7 @@ function makeProposal(overrides: Partial<Proposal> = {}): Proposal {
       makeProgram({ name: "Phase 2: Delivery", description: "Executive workshops on-site.", days: 6, participants: 20 }),
     ],
     sentAt: null,
+    pipeline: {},
     ...overrides,
   };
 }

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { debounce, LocalStoragePricingStore } from "./store";
-import { newProgram, newProposal, normalizeProposal, type Proposal } from "./types";
+import { DEFAULT_TARGETS, newProgram, newProposal, normalizeProposal, type Proposal } from "./types";
 
 // Minimal localStorage stand-in for the node test environment.
 class MemoryStorage {
@@ -81,6 +81,7 @@ describe("LocalStoragePricingStore", () => {
       lastExportAt: null,
       signatureImage: "data:image/png;base64,SIG",
       stampImage: "data:image/png;base64,STAMP",
+      targets: DEFAULT_TARGETS,
     });
     const r = store.loadAll();
     expect(r.settings.signatureImage).toBe("data:image/png;base64,SIG");
@@ -99,7 +100,7 @@ describe("LocalStoragePricingStore", () => {
     const a = proposal("A");
     storage.failWrites = true;
     expect(store.saveProposal(a, [a.id])).toBe(false);
-    expect(store.saveSettings({ marginFloorPct: 30, lastExportAt: null, signatureImage: null, stampImage: null })).toBe(false);
+    expect(store.saveSettings({ marginFloorPct: 30, lastExportAt: null, signatureImage: null, stampImage: null, targets: DEFAULT_TARGETS })).toBe(false);
   });
 
   it("deleteProposal removes the key and rewrites the index", () => {
@@ -116,7 +117,7 @@ describe("LocalStoragePricingStore", () => {
   it("export and import round-trip the whole store", () => {
     const a = proposal("A");
     store.saveProposal(a, [a.id]);
-    store.saveSettings({ marginFloorPct: 25, lastExportAt: "2026-08-01T00:00:00Z", signatureImage: null, stampImage: null });
+    store.saveSettings({ marginFloorPct: 25, lastExportAt: "2026-08-01T00:00:00Z", signatureImage: null, stampImage: null, targets: DEFAULT_TARGETS });
     const json = store.exportAll();
 
     // Fresh store: import replaces everything.
@@ -132,7 +133,8 @@ describe("LocalStoragePricingStore", () => {
     const a = proposal("A");
     store.saveProposal(a, [a.id]);
     expect(() => store.importAll("not json")).toThrow();
-    expect(() => store.importAll('{"version":2,"proposals":[]}')).toThrow();
+    expect(() => store.importAll('{"version":3,"proposals":[]}')).toThrow();
+    expect(() => store.importAll('{"version":2}')).toThrow();
     expect(() => store.importAll('{"version":1,"proposals":[{"bad":true}]}')).toThrow();
     expect(store.loadAll().proposals.map((x) => x.title)).toEqual(["A"]);
   });
@@ -200,6 +202,93 @@ describe("project types", () => {
     expect(r.proposals[0].sectionLabel).toBe("");
     expect(r.proposals[0].programs[0].description).toBe("");
     expect(r.corruptIds).toEqual([]);
+  });
+});
+
+describe("external deals and targets", () => {
+  function deal(company: string): import("./types").ExternalDeal {
+    return {
+      id: crypto.randomUUID(),
+      importedAt: "2026-08-30T00:00:00.000Z",
+      date: "2026-06-01",
+      source: "",
+      dealType: "",
+      sector: "",
+      primaryService: "",
+      company,
+      projectName: "Deal",
+      stage: "Won",
+      winningProbability: null,
+      deliveryStart: "",
+      deliveryEnd: "",
+      poNumber: "",
+      currency: "SAR",
+      dealValue: 1000,
+      gpPct: null,
+      gpAmount: null,
+      projectStatus: "",
+      notes: "",
+      flags: {},
+    };
+  }
+
+  it("replaceExternalDeals round-trips and a second replace removes old keys", () => {
+    const a = deal("A");
+    const b = deal("B");
+    expect(store.replaceExternalDeals([a, b])).toBe(true);
+    expect(store.loadAll().externalDeals.map((d) => d.company)).toEqual(["A", "B"]);
+    const c = deal("C");
+    store.replaceExternalDeals([c]);
+    expect(store.loadAll().externalDeals.map((d) => d.company)).toEqual(["C"]);
+    expect(storage.raw().has(`hni.pricing.v1.external.${a.id}`)).toBe(false);
+  });
+
+  it("deleteExternalDeal removes one deal and keeps the rest", () => {
+    const a = deal("A");
+    const b = deal("B");
+    store.replaceExternalDeals([a, b]);
+    store.deleteExternalDeal(a.id);
+    expect(store.loadAll().externalDeals.map((d) => d.company)).toEqual(["B"]);
+  });
+
+  it("exportAll emits version 2 with externalDeals; import restores them", () => {
+    const a = deal("A");
+    store.replaceExternalDeals([a]);
+    store.saveSettings({ ...store.loadAll().settings, targets: { periodStart: "2026-01-01", periodEnd: null, revenueTarget: 5000000, gpTarget: null } });
+    const json = store.exportAll();
+    expect(JSON.parse(json).version).toBe(2);
+
+    store.replaceExternalDeals([]);
+    const r = store.importAll(json);
+    expect(r.externalDeals.map((d) => d.company)).toEqual(["A"]);
+    expect(r.settings.targets.revenueTarget).toBe(5000000);
+  });
+
+  it("v1 backups (no externalDeals, no targets) still import with defaults", () => {
+    const a = proposal("A");
+    store.saveProposal(a, [a.id]);
+    const v1 = JSON.stringify({
+      version: 1,
+      settings: { marginFloorPct: 25, lastExportAt: null, signatureImage: null, stampImage: null },
+      proposals: [a],
+    });
+    const r = store.importAll(v1);
+    expect(r.proposals.map((x) => x.title)).toEqual(["A"]);
+    expect(r.externalDeals).toEqual([]);
+    expect(r.settings.targets).toEqual({ periodStart: null, periodEnd: null, revenueTarget: null, gpTarget: null });
+  });
+
+  it("normalizeProposal backfills a missing pipeline and drops invalid stages", () => {
+    const base = newProposal("X", "On signature");
+    const legacy = { ...base } as Record<string, unknown>;
+    delete legacy.pipeline;
+    expect(normalizeProposal(legacy as unknown as Proposal).pipeline).toEqual({});
+    const badStage = { ...base, pipeline: { stage: "Negotiating", notes: "keep me" } } as unknown as Proposal;
+    const normalized = normalizeProposal(badStage);
+    expect(normalized.pipeline.stage).toBeUndefined();
+    expect(normalized.pipeline.notes).toBe("keep me");
+    const goodStage = { ...base, pipeline: { stage: "Won" } } as unknown as Proposal;
+    expect(normalizeProposal(goodStage).pipeline.stage).toBe("Won");
   });
 });
 

@@ -21,9 +21,25 @@ export type Kpi = {
  * One strip, no individual cards. Label, value, delta, comparison.
  * Values are bidi-isolated so signs and units keep their position in Arabic.
  */
+// Wide-breakpoint column count follows the tile count so a short strip has no dead cells.
+const LG_COLS: Record<number, string> = {
+  1: "lg:grid-cols-1",
+  2: "lg:grid-cols-2",
+  3: "lg:grid-cols-3",
+  4: "lg:grid-cols-4",
+  5: "lg:grid-cols-5",
+};
+
 export function KpiStrip({ items, label }: { items: Kpi[]; label: string }) {
   return (
-    <section aria-label={label} className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line-1 bg-line-1 md:grid-cols-3 lg:grid-cols-6">
+    <section
+      aria-label={label}
+      className={cn(
+        "grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line-1 bg-line-1",
+        items.length % 3 === 0 && "md:grid-cols-3",
+        LG_COLS[items.length] ?? "lg:grid-cols-6",
+      )}
+    >
       {items.map((k) => {
         const good = k.deltaSign === 0 ? null : k.invert ? k.deltaSign === -1 : k.deltaSign === 1;
         const body = (

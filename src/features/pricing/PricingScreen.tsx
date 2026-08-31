@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCheck, Copy, Download, Eye, FilePlus2, Files, ImagePlus, Trash2, Upload, X } from "lucide-react";
+import { CheckCheck, Copy, Download, Eye, FilePlus2, Files, ImagePlus, KanbanSquare, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,18 +12,25 @@ import { calc } from "./calc";
 import { ClientView } from "./ClientView";
 import { CostTable } from "./CostTable";
 import { DocumentsList } from "./DocumentsList";
+import { PipelineTab } from "./PipelineTab";
 import { SummaryPanel } from "./SummaryPanel";
 import { fileToLogoDataUrl } from "./logo";
 import { debounce, LocalStoragePricingStore, type PricingStore } from "./store";
 import {
+  inPipeline,
   newId,
   newProposal,
+  PIPELINE_STAGES,
   SECTION_KINDS,
   sectionKindLabel,
   sectionKindLabels,
+  type ExternalDeal,
+  type PipelineInfo,
+  type PipelineStage,
   type ProjectType,
   type Proposal,
   type Settings,
+  type Targets,
 } from "./types";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -41,7 +48,8 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
   const [proposals, setProposals] = useState<Proposal[]>(initialLoad.proposals);
   const [settings, setSettings] = useState<Settings>(initialLoad.settings);
   const [currentId, setCurrentId] = useState<string | null>(initialLoad.proposals[0]?.id ?? null);
-  const [mode, setMode] = useState<"edit" | "client" | "documents">("edit");
+  const [externals, setExternals] = useState<ExternalDeal[]>(initialLoad.externalDeals);
+  const [mode, setMode] = useState<"edit" | "client" | "documents" | "pipeline">("edit");
   /** Where the client view's Back button returns to. */
   const [clientViewOrigin, setClientViewOrigin] = useState<"edit" | "documents">("edit");
   const [storageError, setStorageError] = useState(false);
@@ -120,8 +128,56 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
     toast({ title: p.sent, description: p.sentLocked });
   };
 
+  /**
+   * Structural pipeline write path (design T3.4): only PipelineInfo fields can
+   * flow through here, so the sent-lock on quote content cannot be bypassed.
+   * Deliberately NOT guarded by `locked`: pipeline state is sales-journey
+   * data and stays editable after Mark-as-sent.
+   */
+  const updatePipeline = (proposalId: string, patch: Partial<PipelineInfo>) => {
+    const target = proposals.find((x) => x.id === proposalId);
+    if (!target) return;
+    const updated = { ...target, pipeline: { ...target.pipeline, ...patch } };
+    const next = proposals.map((x) => (x.id === proposalId ? updated : x));
+    setProposals(next);
+    save(updated, next.map((x) => x.id));
+  };
+
+  const stampCopied = (proposalIds: string[]) => {
+    const now = new Date().toISOString();
+    const ids = new Set(proposalIds);
+    const next = proposals.map((x) => (ids.has(x.id) ? { ...x, pipeline: { ...x.pipeline, copiedAt: now } } : x));
+    setProposals(next);
+    for (const x of next) if (ids.has(x.id)) pricingStore.saveProposal(x, next.map((y) => y.id));
+  };
+
+  const replaceExternals = (deals: ExternalDeal[]) => {
+    setExternals(deals);
+    setStorageError(!pricingStore.replaceExternalDeals(deals));
+  };
+
+  const updateExternal = (deal: ExternalDeal) => {
+    const next = externals.map((d) => (d.id === deal.id ? deal : d));
+    setExternals(next);
+    setStorageError(!pricingStore.replaceExternalDeals(next));
+  };
+
+  const deleteExternal = (id: string) => {
+    setExternals(externals.filter((d) => d.id !== id));
+    pricingStore.deleteExternalDeal(id);
+  };
+
+  const updateTargets = (targets: Targets) => {
+    const nextSettings = { ...settings, targets };
+    setSettings(nextSettings);
+    setStorageError(!pricingStore.saveSettings(nextSettings));
+  };
+
   const deleteProposal = () => {
     if (!current) return;
+    // A decided deal counts in achievement numbers: one deliberate confirmation (design T3.7).
+    const stage = current.pipeline.stage;
+    if ((stage === "Won" || stage === "Lost") && !window.confirm(p.confirmDecidedDelete)) return;
     const next = proposals.filter((x) => x.id !== current.id);
     setProposals(next);
     setCurrentId(next[0]?.id ?? null);
@@ -180,6 +236,7 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
   }
 
   const sentDocuments = proposals.filter((x) => x.sentAt != null);
+  const pipelineCount = proposals.filter(inPipeline).length + externals.length;
 
   return (
     <div>
@@ -220,6 +277,19 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
                 {p.documents}
                 {sentDocuments.length > 0 && (
                   <span className="tabular rounded bg-surface-2 px-1 text-[11px] text-hni-grey-dark">{sentDocuments.length}</span>
+                )}
+              </Button>
+              <Button
+                variant={mode === "pipeline" ? "secondary" : "outline"}
+                size="sm"
+                aria-pressed={mode === "pipeline"}
+                data-testid="pipeline-toggle"
+                onClick={() => setMode(mode === "pipeline" ? "edit" : "pipeline")}
+              >
+                <KanbanSquare className="size-4" aria-hidden />
+                {p.pipelineTab}
+                {pipelineCount > 0 && (
+                  <span className="tabular rounded bg-surface-2 px-1 text-[11px] text-hni-grey-dark">{pipelineCount}</span>
                 )}
               </Button>
             </>
@@ -281,6 +351,24 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
             {p.export}
           </Button>
         </div>
+      )}
+
+      {mode === "pipeline" && (
+        <PipelineTab
+          proposals={proposals}
+          externals={externals}
+          settings={settings}
+          onUpdatePipeline={updatePipeline}
+          onStampCopied={stampCopied}
+          onReplaceExternals={replaceExternals}
+          onDeleteExternal={deleteExternal}
+          onUpdateExternal={updateExternal}
+          onUpdateTargets={updateTargets}
+          onOpenProposal={(id) => {
+            setCurrentId(id);
+            setMode("edit");
+          }}
+        />
       )}
 
       {mode === "documents" && (
@@ -369,6 +457,38 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
                     <SelectContent>
                       <SelectItem value="workshop">{p.projectTypes.workshop}</SelectItem>
                       <SelectItem value="custom">{p.projectTypes.custom}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-44">
+                  <span className="block text-[11px] font-medium uppercase tracking-wide text-hni-grey-dark">{p.plStage}</span>
+                  {/* The pipeline entry point: setting a stage adds the proposal to the
+                      pipeline tab. Deliberately NOT disabled when locked; see updatePipeline. */}
+                  <Select
+                    value={current.pipeline.stage ?? "__none"}
+                    onValueChange={(v) => {
+                      if (v === "__none") {
+                        updatePipeline(current.id, { stage: undefined, decidedAt: null });
+                        return;
+                      }
+                      const stage = v as PipelineStage;
+                      const decided = stage === "Won" || stage === "Lost";
+                      updatePipeline(current.id, {
+                        stage,
+                        decidedAt: decided ? (current.pipeline.decidedAt ?? new Date().toISOString().slice(0, 10)) : null,
+                      });
+                    }}
+                  >
+                    <SelectTrigger className="mt-1 h-8" aria-label={p.plStage} data-testid="pipeline-stage-edit">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none">{p.plNoStage}</SelectItem>
+                      {PIPELINE_STAGES.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {(p.stageLabels as Record<string, string>)[s] ?? s}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

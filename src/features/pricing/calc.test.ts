@@ -45,6 +45,7 @@ function makeProposal(overrides: Partial<Proposal> = {}): Proposal {
     schedule: [{ id: "s1", label: "On signature", percent: 100 }],
     programs: [makeProgram()],
     sentAt: null,
+    pipeline: {},
     ...overrides,
   };
 }
