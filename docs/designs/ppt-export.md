@@ -115,7 +115,7 @@ The Assignment check found the team DOES edit terms: T&C varies by engagement ty
 ## Acceptance Record
 
 - 2026-08-31: English deck PASSED the desktop PowerPoint gate (user-verified: opens clean, description cell retyped and re-saved). Feature shipped in commit 0440245.
-- Arabic deck: not yet user-verified in PowerPoint; the in-app verify notice remains the gate before Arabic decks go to clients.
+- 2026-08-31, user decision: exports are ENGLISH-ONLY. The Arabic deck option and verify notice are removed from the UI (supersedes premise 4 and amendment T4); the exporter keeps its language parameter and Arabic unit tests so re-exposing an Arabic deck later is a two-line UI change. Arabic client names inside English decks remain protected by the run-splitter.
 
 ## GSTACK REVIEW REPORT
 

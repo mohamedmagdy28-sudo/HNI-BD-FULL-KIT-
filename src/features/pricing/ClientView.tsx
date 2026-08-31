@@ -1,12 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, FileDown, ImagePlus, Printer, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { formatCurrency, getPricingDict, useI18n, type Lang } from "@/lib/i18n";
 import { hasDescriptions as computeHasDescriptions } from "./documentPredicates";
@@ -194,7 +188,6 @@ export function ClientView({ proposal, result, settings, onSettingsChange, onBac
         bankDetails: BANK_DETAILS,
       });
       await pres.writeFile({ fileName: exporter.proposalFileName(proposal.clientName, proposal.date) });
-      if (deckLang === "ar") toast({ title: p.exportArNotice });
     } catch (err) {
       // A stale tab after a redeploy 404s the lazy chunk (eng review T6.2).
       const msg = err instanceof Error ? err.message : "";
@@ -272,22 +265,18 @@ export function ClientView({ proposal, result, settings, onSettingsChange, onBac
               )}
             </div>
           ))}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" disabled={exportingLang !== null} data-testid="export-ppt">
-                <FileDown className="size-4" aria-hidden />
-                {exportingLang ? p.exporting : p.exportPpt}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem data-testid="export-ppt-en" onSelect={() => void exportDeck("en")}>
-                {p.deckEn}
-              </DropdownMenuItem>
-              <DropdownMenuItem data-testid="export-ppt-ar" onSelect={() => void exportDeck("ar")}>
-                {p.deckAr}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* English-only by user decision (2026-08-31); the exporter keeps its
+              language parameter so re-exposing an Arabic deck stays a two-line change. */}
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={exportingLang !== null}
+            data-testid="export-ppt"
+            onClick={() => void exportDeck("en")}
+          >
+            <FileDown className="size-4" aria-hidden />
+            {exportingLang ? p.exporting : p.exportPpt}
+          </Button>
           <Button size="sm" data-testid="client-view-print" onClick={print}>
             <Printer className="size-4" aria-hidden />
             {p.print}

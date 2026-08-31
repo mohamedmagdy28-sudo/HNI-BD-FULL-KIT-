@@ -328,10 +328,9 @@ test("export PPT downloads a valid six-slide deck with the proposal's numbers", 
   await page.getByTestId("client-name").fill("Acme Corp");
   await page.getByTestId("open-client-view").click();
 
-  await page.getByTestId("export-ppt").click();
   const [download] = await Promise.all([
     page.waitForEvent("download"),
-    page.getByTestId("export-ppt-en").click(),
+    page.getByTestId("export-ppt").click(),
   ]);
   expect(download.suggestedFilename()).toBe(`hni-proposal-acme-corp-${new Date().toISOString().slice(0, 10)}.pptx`);
 
@@ -346,29 +345,21 @@ test("export PPT downloads a valid six-slide deck with the proposal's numbers", 
   await expect(page.getByTestId("export-ppt")).toBeEnabled();
 });
 
-test("Arabic deck exports from any UI language and shows the verify notice", async ({ page }, testInfo) => {
+test("export always produces the English deck, even from the Arabic UI", async ({ page }, testInfo) => {
   const lang = langFromProject(testInfo.project.name);
   await gotoWithLanguage(page, "/", lang);
   await createProposalWithProgram(page);
   await page.getByTestId("open-client-view").click();
 
-  await page.getByTestId("export-ppt").click();
   const [download] = await Promise.all([
     page.waitForEvent("download"),
-    page.getByTestId("export-ppt-ar").click(),
+    page.getByTestId("export-ppt").click(),
   ]);
   const slides = await unzipDownload(download);
-  // T1: Arabic deck money is all-Latin SAR; the Arabic currency symbol never appears on slide 2.
+  // English-only export (user decision 2026-08-31): English headings regardless of UI language.
+  expect(slides.get("ppt/slides/slide2.xml")).toContain("Financial Breakdown");
   expect(slides.get("ppt/slides/slide2.xml")).toContain("SAR 36,450");
-  expect(slides.get("ppt/slides/slide2.xml")).not.toContain("ر.س");
-  // Legal terms stay English in the Arabic deck.
   expect(slides.get("ppt/slides/slide3.xml")).toContain("Training material and delivery will be conducted in English.");
-
-  const notice =
-    lang === "ar"
-      ? "النسخة العربية: تحقق منها في PowerPoint قبل إرسالها إلى العميل."
-      : "Arabic deck: verify in PowerPoint before sending to a client.";
-  await expect(page.getByText(notice).first()).toBeVisible();
 });
 
 test("export works from a document opened via the archive", async ({ page }, testInfo) => {
@@ -380,10 +371,9 @@ test("export works from a document opened via the archive", async ({ page }, tes
   await page.locator("[data-testid^='open-document-']").click();
   await expect(page.getByTestId("client-document")).toBeVisible();
 
-  await page.getByTestId("export-ppt").click();
   const [download] = await Promise.all([
     page.waitForEvent("download"),
-    page.getByTestId("export-ppt-en").click(),
+    page.getByTestId("export-ppt").click(),
   ]);
   const slides = await unzipDownload(download);
   expect(slides.size).toBe(6);
