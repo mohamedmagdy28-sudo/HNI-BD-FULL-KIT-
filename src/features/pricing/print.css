@@ -19,14 +19,14 @@
   }
 }
 
-/* A4 landscape: 11.693 x 8.268in. Zoom 0.87 shrinks a page to 11.60 x 6.53in.
-   @page margin MUST stay 0: any margin gives Chrome room to print its own
-   date/title/URL header-footer lines onto the proposal. The centering bands
-   come from element margins on .doc-page instead (inside the zoomed
-   coordinate space, so 0.9in renders as ~0.78in), sized with slack so
-   rounding never spills a blank sheet. */
+/* Each PDF page is EXACTLY the slide size, like a PowerPoint export: no
+   letterbox bands (A4 was tried 2026-08-31 and reverted the same day; a 16:9
+   design on squarer A4 paper always leaves bands). Physical printing on A4
+   auto-fits in the print dialog. @page margin MUST stay 0: any margin gives
+   Chrome room to print its own date/title/URL header-footer lines onto the
+   proposal. */
 @page {
-  size: A4 landscape;
+  size: 13.33in 7.5in;
   margin: 0;
 }
 
@@ -43,14 +43,12 @@
     inset-inline-start: 0;
     top: 0;
     margin: 0;
-    /* Scale the whole document (container included) onto A4 landscape. */
-    zoom: 0.87;
   }
   #client-document.doc-pages {
     width: 13.33in;
   }
   .doc-page {
-    margin: 0.9in 0 !important;
+    margin: 0 !important;
     border: none;
     border-radius: 0;
     box-shadow: none;
@@ -69,6 +67,5 @@
     break-after: auto;
   }
   /* The screen layout's space-y sibling margins are overridden by the
-     .doc-page !important margins above, which double as the A4 centering
-     bands. */
+     .doc-page !important zero margins above, keeping page breaks exact. */
 }
