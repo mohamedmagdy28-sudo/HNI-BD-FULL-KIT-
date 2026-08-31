@@ -120,7 +120,14 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
 
   const markSent = () => {
     if (!current || locked) return;
-    const updated = { ...current, sentAt: new Date().toISOString() };
+    const updated = {
+      ...current,
+      sentAt: new Date().toISOString(),
+      // A submitted proposal IS a pipeline deal (user mental model,
+      // 2026-08-31): default the stage to "Proposal" so the amount and GP
+      // reflect immediately. Never overwrites a stage set earlier.
+      pipeline: current.pipeline.stage ? current.pipeline : { ...current.pipeline, stage: "Proposal" as const },
+    };
     const next = proposals.map((x) => (x.id === updated.id ? updated : x));
     setProposals(next);
     save.flush();

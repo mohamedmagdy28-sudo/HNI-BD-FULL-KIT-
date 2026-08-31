@@ -262,6 +262,35 @@ test("sent-lock: quote fields stay locked while pipeline fields stay editable", 
   await expect(page.getByTestId("markup-input")).toBeDisabled();
 });
 
+test("mark as sent puts the proposal in the pipeline with its real amount and derived GP", async ({ page }, testInfo) => {
+  const lang = langFromProject(testInfo.project.name);
+  await gotoWithLanguage(page, "/", lang);
+  await createProposalWithProgram(page, "Maaden Phosphate", "Strategic HR");
+  await page.getByTestId("mark-sent").click();
+
+  // Submission defaulted the stage to Proposal; the pipeline shows the true total.
+  await page.getByTestId("pipeline-toggle").click();
+  const row = page.locator("[data-testid^='pipeline-row-']");
+  await expect(row).toHaveCount(1);
+  await expect(row).toContainText("Maaden Phosphate");
+  await expect(row).toContainText("36,450"); // netPrice, not 0
+  await expect(row).toContainText("25.9%"); // derived GP%, not empty
+  expect(digits(await page.getByTestId("kpi-open").locator(".tabular").first().textContent())).toBe(36450);
+
+  // A stage chosen BEFORE sending is never overwritten by mark-as-sent.
+  await page.getByTestId("pipeline-toggle").click();
+  await page.getByTestId("new-proposal").click();
+  await page.getByTestId("add-program").click();
+  await page.getByTestId("line-qty-0-0").fill("1");
+  await page.getByTestId("line-rate-0-0").fill("1000");
+  await page.getByTestId("pipeline-stage-edit").click();
+  await page.getByRole("option", { name: STAGE_LABELS[lang].Won, exact: true }).click();
+  await page.getByTestId("mark-sent").click();
+  await page.getByTestId("pipeline-toggle").click();
+  const wonRow = page.locator("[data-testid^='pipeline-row-']").filter({ hasText: "1,350" }); // 1,000 cost x 1.35 default markup
+  await expect(wonRow.locator("[data-testid^='stage-']")).toContainText(STAGE_LABELS[lang].Won);
+});
+
 test("goal band: empty state without target, live GP progress with one, booked share reacts to stages", async ({ page }, testInfo) => {
   const lang = langFromProject(testInfo.project.name);
   await gotoWithLanguage(page, "/", lang);

@@ -154,8 +154,11 @@ export class LocalStoragePricingStore implements PricingStore {
             if (raw === null) continue;
             try {
               const deal: unknown = JSON.parse(raw);
-              if (isExternalDeal(deal)) externalDeals.push(deal);
-              else corruptIds.push(id);
+              // Backfill the 50% GP default onto rows imported before the
+              // rule existed (only when the row has NO GP data at all).
+              if (isExternalDeal(deal)) {
+                externalDeals.push(deal.gpPct == null && deal.gpAmount == null ? { ...deal, gpPct: 50 } : deal);
+              } else corruptIds.push(id);
             } catch {
               corruptIds.push(id);
             }

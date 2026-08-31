@@ -180,7 +180,10 @@ export function parsePipelineRows(
     const nonSar = currency !== "" && currency.trim().toUpperCase() !== "SAR";
     const dealValue = parseLenientNumber(cell(row, "Actual Deal Value (AED)"));
     const gpAmount = parseLenientNumber(cell(row, "Actual Expected GP amt. (AED)"));
-    const gpPct = parseLenientNumber(cell(row, "GP%"));
+    // Rows with no GP data at all default to 50% (user rule 2026-08-31:
+    // "put 50% gp by default and i will change it later as per actual").
+    // A row with a GP amount but no percent keeps the amount as fallback.
+    const gpPct = parseLenientNumber(cell(row, "GP%")) ?? (gpAmount == null ? 50 : null);
     const badValue = dealValue === null;
     const isoDate = parseSheetDate(cell(row, "Date"));
     const rawStage = cell(row, "Stage");

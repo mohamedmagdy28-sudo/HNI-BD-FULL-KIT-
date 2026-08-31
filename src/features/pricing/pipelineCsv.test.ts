@@ -175,6 +175,20 @@ describe("parsePipelineCsv", () => {
     expect(report.nonSar).toBe(1);
   });
 
+  it("defaults GP% to 50 only when a row has no GP data at all", () => {
+    const csv = [
+      HEADER_LINE,
+      row({ Company: "A", "Project Name": "NoGp", Stage: "Proposal", Currency: "SAR", "Actual Deal Value (AED)": "10000" }),
+      row({ Company: "B", "Project Name": "AmtOnly", Stage: "Proposal", Currency: "SAR", "Actual Deal Value (AED)": "10000", "Actual Expected GP amt. (AED)": "4000" }),
+      row({ Company: "C", "Project Name": "PctSet", Stage: "Proposal", Currency: "SAR", "Actual Deal Value (AED)": "10000", "GP%": "30%" }),
+    ].join("\n");
+    const { deals } = parsePipelineCsv(csv, []);
+    expect(deals[0].gpPct).toBe(50); // no GP data: user's 50% default
+    expect(deals[1].gpPct).toBeNull(); // amount exists: keep it as the fallback
+    expect(deals[1].gpAmount).toBe(4000);
+    expect(deals[2].gpPct).toBe(30);
+  });
+
   it("reports (never merges) rows matching an app proposal by company+title, trim and case insensitive", () => {
     const csv = [HEADER_LINE, row({ Company: " neom ", "Project Name": "LEADERSHIP TRACK", Stage: "Won", Currency: "SAR", "Actual Deal Value (AED)": "1" })].join("\n");
     const { deals, report } = parsePipelineCsv(csv, [makeProposal()]);

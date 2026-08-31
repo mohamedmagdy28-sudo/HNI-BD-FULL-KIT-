@@ -243,6 +243,15 @@ describe("external deals and targets", () => {
     expect(storage.raw().has(`hni.pricing.v1.external.${a.id}`)).toBe(false);
   });
 
+  it("loadAll backfills the 50% GP default onto stored rows with no GP data", () => {
+    const noGp = { ...deal("A"), gpPct: null, gpAmount: null };
+    const amtOnly = { ...deal("B"), gpPct: null, gpAmount: 4000 };
+    store.replaceExternalDeals([noGp, amtOnly]);
+    const r = store.loadAll();
+    expect(r.externalDeals.find((d) => d.company === "A")!.gpPct).toBe(50);
+    expect(r.externalDeals.find((d) => d.company === "B")!.gpPct).toBeNull();
+  });
+
   it("deleteExternalDeal removes one deal and keeps the rest", () => {
     const a = deal("A");
     const b = deal("B");
