@@ -112,6 +112,11 @@ The Assignment check found the team DOES edit terms: T&C varies by engagement ty
 - Feature B (terms management in-app: engagement types carry their own T&C variants, assumptions editable per proposal, feeding PDF and PPT) is a separate follow-up feature; the user holds an Assessment Center PDF as source material. Captured in TODOS.md.
 - Acceptance gate: desktop PowerPoint availability unconfirmed; the retype-a-cell gate is deferred to before the feature is declared done, not blocking the build.
 
+## Acceptance Record
+
+- 2026-08-31: English deck PASSED the desktop PowerPoint gate (user-verified: opens clean, description cell retyped and re-saved). Feature shipped in commit 0440245.
+- Arabic deck: not yet user-verified in PowerPoint; the in-app verify notice remains the gate before Arabic decks go to clients.
+
 ## GSTACK REVIEW REPORT
 
 | Review | Trigger | Why | Runs | Status | Findings |
