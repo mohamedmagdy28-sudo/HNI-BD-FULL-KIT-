@@ -88,6 +88,41 @@ export function buildRows(proposals: Proposal[], externals: ExternalDeal[]): Pip
   return rows;
 }
 
+export type BookedShare = {
+  wonValue: number;
+  openValue: number;
+  wonCount: number;
+  openCount: number;
+  /** Integer percent of pipeline value already Won; 0 when the pipeline is empty, never NaN. */
+  pct: number;
+};
+
+/**
+ * Composition snapshot for the Booked-projects bar: Won value as a share of
+ * (Won + open) pipeline value. Deliberately period-INDEPENDENT (design:
+ * docs/designs/pipeline-goal-visuals.md premise 3): computeTotals
+ * period-filters achieved but not open, so a period-scoped share would mix
+ * scopes. Excluded rows (bad value / non-SAR) and Lost stay out.
+ */
+export function bookedShare(rows: PipelineRowData[]): BookedShare {
+  let wonValue = 0;
+  let openValue = 0;
+  let wonCount = 0;
+  let openCount = 0;
+  for (const row of rows) {
+    if (row.excluded || row.value === null) continue;
+    if (row.stage === "Won") {
+      wonValue += row.value;
+      wonCount++;
+    } else if ((OPEN_STAGES as readonly string[]).includes(row.stage)) {
+      openValue += row.value;
+      openCount++;
+    }
+  }
+  const total = wonValue + openValue;
+  return { wonValue, openValue, wonCount, openCount, pct: total > 0 ? Math.round((wonValue / total) * 100) : 0 };
+}
+
 function inPeriod(dateIso: string | null, targets: Targets): boolean {
   if (!targets.periodStart && !targets.periodEnd) return true;
   if (dateIso === null) return false;

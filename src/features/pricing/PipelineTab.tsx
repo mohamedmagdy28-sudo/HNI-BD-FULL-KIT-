@@ -25,7 +25,7 @@ import {
   toCsv,
   toTsv,
 } from "./pipelineCsv";
-import { buildRows, computeTotals, type PipelineRowData } from "./pipelineMath";
+import { bookedShare, buildRows, computeTotals, type PipelineRowData } from "./pipelineMath";
 import { calc } from "./calc";
 import {
   inPipeline,
@@ -89,6 +89,7 @@ export function PipelineTab({
   // Filter narrows the TABLE only; KPI totals stay global so a filtered view
   // never misreads as a change in achievement.
   const visibleRows = stageFilter === "all" ? rows : rows.filter((r) => r.stage === stageFilter);
+  const booked = useMemo(() => bookedShare(rows), [rows]);
   const totals = useMemo(() => computeTotals(rows, settings.targets), [rows, settings.targets]);
   const money = (v: number) => formatCurrency(v, locale);
   const stageLabel = (s: string) => (p.stageLabels as Record<string, string>)[s] ?? s;
@@ -273,8 +274,99 @@ export function PipelineTab({
     </label>
   );
 
+  const gpTarget = settings.targets.gpTarget;
+  const gpPctTrue = totals.gpTargetPct; // may exceed 100 or go negative; label shows truth, fill clamps
+  const gpFill = gpPctTrue == null ? 0 : Math.min(100, Math.max(0, gpPctTrue));
+
   return (
     <div className="space-y-4">
+      <div className="grid gap-3 md:grid-cols-2" data-testid="goal-band">
+        {/* Card 1 — GP goal (period-scoped, from computeTotals) */}
+        <div className="rounded-lg border border-line-1 bg-surface-0 px-4 py-3" data-testid="goal-card">
+          <div className="text-[12px] font-medium text-hni-grey-dark">{p.goalGp}</div>
+          {gpTarget == null ? (
+            <div className="mt-2 flex flex-wrap items-center gap-2" data-testid="goal-empty">
+              <span className="text-[13px] text-hni-grey-dark">{p.goalSetTarget}</span>
+              <Button variant="outline" size="sm" className="h-7" onClick={() => setShowTargets(true)}>
+                <Target className="size-3.5" aria-hidden />
+                {p.targets}
+              </Button>
+            </div>
+          ) : (
+            <>
+              <div className="mt-1 flex flex-wrap items-baseline gap-x-2">
+                <bdi className="tabular text-[24px] font-semibold leading-none text-hni-black" data-testid="goal-achieved">
+                  {money(totals.achievedGp)}
+                </bdi>
+                <span aria-hidden className="text-hni-grey-mid">|</span>
+                <bdi className="tabular text-[13px] text-hni-grey-dark">
+                  {p.goalOf} {money(gpTarget)}
+                </bdi>
+                <bdi
+                  className={`tabular ms-auto text-[13px] font-medium ${gpPctTrue != null && gpPctTrue >= 100 ? "text-[color:var(--status-success-fg)]" : "text-hni-grey-dark"}`}
+                  data-testid="goal-pct"
+                >
+                  {gpPctTrue != null ? `${gpPctTrue.toFixed(1)}%` : ""}
+                </bdi>
+              </div>
+              <div
+                className="mt-2.5 h-3 overflow-hidden rounded-full bg-surface-2"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(gpFill)}
+                aria-label={p.goalAria}
+              >
+                <div className="h-full rounded-full bg-hni-magenta" style={{ width: `${gpFill}%` }} data-testid="goal-fill" />
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Card 2 — Booked projects (all-time composition snapshot, deliberately period-independent) */}
+        <div className="rounded-lg border border-line-1 bg-surface-0 px-4 py-3" data-testid="booked-card">
+          <div className="flex items-baseline gap-2">
+            <span className="text-[12px] font-medium text-hni-grey-dark">{p.bookedTitle}</span>
+            <span className="text-[11px] text-hni-grey-mid">{p.bookedAllTime}</span>
+          </div>
+          {booked.wonCount + booked.openCount === 0 ? (
+            <p className="mt-2 text-[13px] text-hni-grey-dark" data-testid="booked-empty">{p.bookedEmpty}</p>
+          ) : (
+            <>
+              <div className="mt-1 flex items-baseline gap-2">
+                <bdi className="tabular text-[24px] font-semibold leading-none text-hni-black" data-testid="booked-pct">
+                  {p.bookedPct.replace("{n}", String(booked.pct))}
+                </bdi>
+              </div>
+              <div
+                className="mt-2.5 flex h-3 overflow-hidden rounded-full bg-surface-2"
+                role="img"
+                aria-label={p.bookedAria
+                  .replace("{won}", money(booked.wonValue))
+                  .replace("{total}", money(booked.wonValue + booked.openValue))
+                  .replace("{n}", String(booked.wonCount + booked.openCount))}
+              >
+                <div
+                  className="h-full bg-[color:var(--status-success-fg)]"
+                  style={{ width: `${booked.pct}%` }}
+                  data-testid="booked-fill"
+                />
+              </div>
+              <div className="mt-1.5 flex flex-wrap gap-x-4 text-[12px] text-hni-grey-dark">
+                <span className="inline-flex items-center gap-1.5">
+                  <span aria-hidden className="inline-block size-2 rounded-full bg-[color:var(--status-success-fg)]" />
+                  {p.bookedWon} ({booked.wonCount})
+                </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span aria-hidden className="inline-block size-2 rounded-full bg-surface-2 ring-1 ring-inset ring-line-1" />
+                  {p.bookedOpen} ({booked.openCount})
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
       <KpiStrip items={kpis} label={p.pipelineTab} />
 
       {totals.excludedCount > 0 && (

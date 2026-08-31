@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { calc } from "./calc";
-import { buildRows, computeTotals } from "./pipelineMath";
+import { bookedShare, buildRows, computeTotals } from "./pipelineMath";
 import { newId, DEFAULT_TARGETS, type ExternalDeal, type PipelineInfo, type Program, type Proposal } from "./types";
 
 function makeProgram(unitRate: number): Program {
@@ -110,6 +110,44 @@ describe("buildRows", () => {
     expect(rows[1].excluded).toBe(true);
     expect(rows[2].excluded).toBe(true);
     expect(rows[3].effectiveDate).toBeNull();
+  });
+});
+
+describe("bookedShare", () => {
+  it("is 0 (not NaN) on an empty pipeline", () => {
+    expect(bookedShare([])).toEqual({ wonValue: 0, openValue: 0, wonCount: 0, openCount: 0, pct: 0 });
+  });
+
+  it("Won-only pipeline is 100% booked; open-only is 0%", () => {
+    const wonOnly = bookedShare(buildRows([], [makeExternal()]));
+    expect(wonOnly.pct).toBe(100);
+    const openOnly = bookedShare(buildRows([], [makeExternal({ stage: "Proposal" })]));
+    expect(openOnly.pct).toBe(0);
+    expect(openOnly.openValue).toBe(200000);
+  });
+
+  it("mixes proposals and externals, ignores Lost and excluded rows, rounds to integer", () => {
+    const rows = buildRows(
+      [
+        makeProposal({ stage: "Won", decidedAt: "2026-08-01" }), // 150,000 won
+        makeProposal({ stage: "Lost" }), // ignored
+      ],
+      [
+        makeExternal({ stage: "Initial Negotiation", dealValue: 100000 }), // open
+        makeExternal({ stage: "Won", flags: { badValue: true } }), // excluded
+      ],
+    );
+    const share = bookedShare(rows);
+    expect(share.wonValue).toBe(150000);
+    expect(share.openValue).toBe(100000);
+    expect(share.wonCount).toBe(1);
+    expect(share.openCount).toBe(1);
+    expect(share.pct).toBe(60); // 150k / 250k
+  });
+
+  it("ignores the period entirely: a Won deal outside any period still counts", () => {
+    const rows = buildRows([makeProposal({ stage: "Won", decidedAt: "2020-01-01" })], []);
+    expect(bookedShare(rows).pct).toBe(100);
   });
 });
 

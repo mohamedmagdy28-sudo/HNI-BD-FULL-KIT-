@@ -262,6 +262,42 @@ test("sent-lock: quote fields stay locked while pipeline fields stay editable", 
   await expect(page.getByTestId("markup-input")).toBeDisabled();
 });
 
+test("goal band: empty state without target, live GP progress with one, booked share reacts to stages", async ({ page }, testInfo) => {
+  const lang = langFromProject(testInfo.project.name);
+  await gotoWithLanguage(page, "/", lang);
+  await createProposalWithProgram(page); // net 36,450, GP 9,450
+  await page.getByTestId("pipeline-stage-edit").click();
+  await page.getByRole("option", { name: STAGE_LABELS[lang].Won, exact: true }).click();
+  await page.getByTestId("pipeline-toggle").click();
+
+  // No GP target: goal card shows the set-target empty state, never a fake 0%.
+  await expect(page.getByTestId("goal-empty")).toBeVisible();
+  await expect(page.getByTestId("goal-fill")).toHaveCount(0);
+
+  // Booked: single Won deal = 100% booked.
+  await expect(page.getByTestId("booked-pct")).toContainText("100");
+
+  // Set a GP target of 94,500: achieved 9,450 = 10.0%.
+  await page.getByTestId("targets-toggle").click();
+  await page.getByTestId("target-gpTarget").fill("94500");
+  await expect(page.getByTestId("goal-pct")).toHaveText("10.0%");
+  expect(digits(await page.getByTestId("goal-achieved").textContent())).toBe(9450);
+  const width = await page.getByTestId("goal-fill").evaluate((el) => (el as HTMLElement).style.width);
+  expect(width).toBe("10%");
+
+  // Add an open deal: booked share drops below 100 live (no period set, per design note).
+  await page.getByTestId("pipeline-toggle").click(); // back to edit
+  await page.getByTestId("new-proposal").click();
+  await page.getByTestId("add-program").click();
+  await page.getByTestId("line-qty-0-0").fill("3");
+  await page.getByTestId("line-rate-0-0").fill("9000");
+  await page.getByTestId("pipeline-stage-edit").click();
+  await page.getByRole("option", { name: STAGE_LABELS[lang].Proposal, exact: true }).click();
+  await page.waitForTimeout(400);
+  await page.getByTestId("pipeline-toggle").click();
+  await expect(page.getByTestId("booked-pct")).toContainText("50"); // 36,450 of 72,900
+});
+
 test("stage filter narrows the table but never the KPI totals", async ({ page }, testInfo) => {
   const lang = langFromProject(testInfo.project.name);
   await gotoWithLanguage(page, "/", lang);
