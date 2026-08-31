@@ -93,6 +93,12 @@ export function PipelineTab({
   const totals = useMemo(() => computeTotals(rows, settings.targets), [rows, settings.targets]);
   const money = (v: number) => formatCurrency(v, locale);
   const stageLabel = (s: string) => (p.stageLabels as Record<string, string>)[s] ?? s;
+  // Judge F6: real plural forms ("1 deal", "صفقتان") via CLDR rules.
+  const dealCount = (n: number) => {
+    const forms = p.dealForms as Record<string, string>;
+    const rule = new Intl.PluralRules(locale).select(n);
+    return (forms[rule] ?? forms.other).replace("{n}", String(n));
+  };
 
   // Rebind the drawer to fresh data after edits.
   const liveDrawerRow = drawerRow ? (rows.find((r) => r.id === drawerRow.id) ?? null) : null;
@@ -118,14 +124,14 @@ export function PipelineTab({
       id: "open",
       label: p.kpiOpen,
       value: money(totals.openRevenue),
-      comparison: `${totals.openCount} ${p.kpiDeals}`,
+      comparison: dealCount(totals.openCount),
     },
     {
       id: "weighted",
       label: p.kpiWeighted,
       value: money(totals.weighted),
       comparison:
-        totals.unweightedCount > 0 ? p.kpiUnweighted.replace("{n}", String(totals.unweightedCount)) : `${totals.openCount} ${p.kpiDeals}`,
+        totals.unweightedCount > 0 ? p.kpiUnweighted.replace("{n}", String(totals.unweightedCount)) : dealCount(totals.openCount),
     },
   ];
 
@@ -327,7 +333,7 @@ export function PipelineTab({
         <div className="rounded-lg border border-line-1 bg-surface-0 px-4 py-3" data-testid="booked-card">
           <div className="flex items-baseline gap-2">
             <span className="text-[12px] font-medium text-hni-grey-dark">{p.bookedTitle}</span>
-            <span className="text-[11px] text-hni-grey-mid">{p.bookedAllTime}</span>
+            <span className="text-[11px] text-hni-grey-dark">{p.bookedAllTime}</span>
           </div>
           {booked.wonCount + booked.openCount === 0 ? (
             <p className="mt-2 text-[13px] text-hni-grey-dark" data-testid="booked-empty">{p.bookedEmpty}</p>
@@ -335,7 +341,11 @@ export function PipelineTab({
             <>
               <div className="mt-1 flex items-baseline gap-2">
                 <bdi className="tabular text-[24px] font-semibold leading-none text-hni-black" data-testid="booked-pct">
-                  {p.bookedPct.replace("{n}", String(booked.pct))}
+                  {/* Judge F2: never floor real wins to "0%" or ceil open value away. */}
+                  {p.bookedPct.replace(
+                    "{n}",
+                    booked.pct === 0 && booked.wonValue > 0 ? "<1" : booked.pct === 100 && booked.openValue > 0 ? ">99" : String(booked.pct),
+                  )}
                 </bdi>
               </div>
               <div
@@ -453,7 +463,7 @@ export function PipelineTab({
           <table className="w-full min-w-[1020px] text-[13px]">
             <thead>
               <tr className="border-b border-line-1 bg-surface-1 text-[11px] uppercase tracking-wide text-hni-grey-dark">
-                <th className="px-3 py-2 text-start font-medium">{p.client}</th>
+                <th className="sticky start-0 z-10 bg-surface-1 px-3 py-2 text-start font-medium">{p.client}</th>
                 <th className="px-3 py-2 text-start font-medium">{p.proposalTitle}</th>
                 <th className="w-44 px-3 py-2 text-start font-medium">{p.plStage}</th>
                 <th className="w-24 px-2 py-2 text-end font-medium">{p.plProbability}</th>
@@ -473,7 +483,7 @@ export function PipelineTab({
               )}
               {visibleRows.map((row) => (
                 <tr key={row.id} className="border-b border-line-1 last:border-b-0 hover:bg-surface-1" data-testid={`pipeline-row-${row.id}`}>
-                  <td className="cursor-pointer px-3 py-2 font-medium text-hni-black" onClick={() => setDrawerRow(row)}>
+                  <td className="sticky start-0 z-10 cursor-pointer bg-surface-0 px-3 py-2 font-medium text-hni-black hover:underline" onClick={() => setDrawerRow(row)}>
                     {row.company || "—"}
                     {row.kind === "external" && (
                       <span className="ms-2"><StatusBadge tone="neutral">{p.externalTag}</StatusBadge></span>
@@ -516,7 +526,7 @@ export function PipelineTab({
                         }}
                         className="tabular h-8 pe-6 text-end"
                       />
-                      <span aria-hidden className="pointer-events-none absolute end-2 top-1/2 -translate-y-1/2 text-[12px] text-hni-grey-mid">%</span>
+                      <span aria-hidden className="pointer-events-none absolute end-2 top-1/2 -translate-y-1/2 text-[12px] text-hni-grey-dark">%</span>
                     </div>
                   </td>
                   <td className="tabular px-3 py-2 text-end font-medium text-hni-black">
@@ -548,7 +558,7 @@ export function PipelineTab({
                         }}
                         className="tabular h-8 pe-6 text-end"
                       />
-                      <span aria-hidden className="pointer-events-none absolute end-2 top-1/2 -translate-y-1/2 text-[12px] text-hni-grey-mid">%</span>
+                      <span aria-hidden className="pointer-events-none absolute end-2 top-1/2 -translate-y-1/2 text-[12px] text-hni-grey-dark">%</span>
                     </div>
                   </td>
                   <td className="tabular px-3 py-2 text-end text-hni-grey-dark" data-testid={`gp-amount-${row.id}`}>

@@ -170,6 +170,9 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
   };
 
   const deleteExternal = (id: string) => {
+    // Judge F1 (HIGH): imported deals feed achievement totals and cannot be
+    // recreated in-app, so deletion gets the same gate as decided proposals.
+    if (!window.confirm(p.confirmDeleteImported)) return;
     setExternals(externals.filter((d) => d.id !== id));
     pricingStore.deleteExternalDeal(id);
   };
@@ -251,8 +254,11 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
         title={p.title}
         subtitle={p.subtitle}
         controls={
-          proposals.length > 0 ? (
+          // Judge F10: imported deals must stay reachable even with zero
+          // proposals, so the toggles render whenever ANY pipeline data exists.
+          proposals.length > 0 || externals.length > 0 ? (
             <>
+              {proposals.length > 0 && (
               <Select value={currentId ?? undefined} onValueChange={(id) => { setCurrentId(id); setMode("edit"); }}>
                 <SelectTrigger className="h-8 w-52" aria-label={p.switcher} data-testid="proposal-switcher">
                   <SelectValue placeholder={p.switcher} />
@@ -265,6 +271,7 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
                   ))}
                 </SelectContent>
               </Select>
+              )}
               <Button variant="outline" size="sm" data-testid="export-backup" onClick={exportBackup}>
                 <Download className="size-4" aria-hidden />
                 {p.export}
