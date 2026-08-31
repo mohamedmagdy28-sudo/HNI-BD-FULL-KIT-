@@ -173,6 +173,15 @@ test("CSV import backfills external deals into the table and totals", async ({ p
   expect(digits(await page.getByTestId("kpi-open").locator(".tabular").first().textContent())).toBe(50000);
   expect(digits(await page.getByTestId("kpi-weighted").locator(".tabular").first().textContent())).toBe(20000);
 
+  // GP amount = Revenue x GP%: editing GP% on an imported row recomputes the
+  // cell and the Achieved GP tile (app proposal GP 9,450 + Aramco).
+  const aramcoRow = page.locator("[data-testid^='pipeline-row-']").filter({ hasText: "Aramco" });
+  expect(digits(await aramcoRow.locator("[data-testid^='gp-amount-']").textContent())).toBe(42600); // 120,000 x 35.5%
+  await aramcoRow.locator("[data-testid^='gp-pct-']").fill("50");
+  expect(digits(await aramcoRow.locator("[data-testid^='gp-amount-']").textContent())).toBe(60000);
+  expect(digits(await page.getByTestId("kpi-achieved-gp").locator(".tabular").first().textContent())).toBe(9450 + 60000);
+  await aramcoRow.locator("[data-testid^='gp-pct-']").fill("35.5");
+
   // Externals survive reload and can be deleted individually.
   await page.waitForTimeout(400);
   await page.reload();

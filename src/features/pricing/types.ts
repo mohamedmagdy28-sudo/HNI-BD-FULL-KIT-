@@ -284,3 +284,15 @@ export function normalizeProposal(p: Proposal): Proposal {
 export function inPipeline(p: Proposal): boolean {
   return p.pipeline.stage !== undefined;
 }
+
+/**
+ * External deal GP amount: Revenue x GP% when both are known (user rule,
+ * 2026-08-31); the imported sheet figure is only a fallback for rows missing
+ * a GP%. Table, totals, and sheet export all use this one function.
+ */
+export function dealGpAmount(dealValue: number | null, gpPct: number | null, fallback: number | null): number | null {
+  if (dealValue != null && gpPct != null && Number.isFinite(dealValue) && Number.isFinite(gpPct)) {
+    return Math.round((dealValue * gpPct) / 100);
+  }
+  return fallback;
+}

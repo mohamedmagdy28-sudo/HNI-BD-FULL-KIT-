@@ -358,22 +358,23 @@ export function PipelineTab({
         <EmptyState title={p.pipelineEmptyTitle} body={p.pipelineEmptyBody} />
       ) : (
         <div className="overflow-x-auto rounded-lg border border-line-1 bg-surface-0">
-          <table className="w-full min-w-[900px] text-[13px]">
+          <table className="w-full min-w-[1020px] text-[13px]">
             <thead>
               <tr className="border-b border-line-1 bg-surface-1 text-[11px] uppercase tracking-wide text-hni-grey-dark">
                 <th className="px-3 py-2 text-start font-medium">{p.client}</th>
                 <th className="px-3 py-2 text-start font-medium">{p.proposalTitle}</th>
                 <th className="w-44 px-3 py-2 text-start font-medium">{p.plStage}</th>
                 <th className="w-24 px-2 py-2 text-end font-medium">{p.plProbability}</th>
-                <th className="w-32 px-3 py-2 text-end font-medium">{p.netPrice}</th>
-                <th className="w-32 px-3 py-2 text-end font-medium">{p.margin}</th>
+                <th className="w-32 px-3 py-2 text-end font-medium">{p.plRevenue}</th>
+                <th className="w-24 px-2 py-2 text-end font-medium">{p.plGpPct}</th>
+                <th className="w-32 px-3 py-2 text-end font-medium">{p.plGpAmount}</th>
                 <th className="w-20 px-2 py-2" />
               </tr>
             </thead>
             <tbody>
               {visibleRows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-3 py-6 text-center text-[13px] text-hni-grey-dark" data-testid="filter-empty">
+                  <td colSpan={8} className="px-3 py-6 text-center text-[13px] text-hni-grey-dark" data-testid="filter-empty">
                     {p.filterNoMatches}
                   </td>
                 </tr>
@@ -407,26 +408,54 @@ export function PipelineTab({
                     </Select>
                   </td>
                   <td className="px-2 py-1.5">
-                    <Input
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={row.winningProbability ?? ""}
-                      aria-label={p.plProbability}
-                      data-testid={`prob-${row.id}`}
-                      onChange={(e) => {
-                        const v = numOrNull(e.target.value);
-                        const bounded = v == null ? undefined : Math.min(100, Math.max(0, Math.trunc(v)));
-                        if (row.kind === "proposal") onUpdatePipeline(row.id, { winningProbability: bounded });
-                        else if (row.external) onUpdateExternal({ ...row.external, winningProbability: bounded ?? null });
-                      }}
-                      className="tabular h-8 text-end"
-                    />
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={row.winningProbability ?? ""}
+                        aria-label={p.plProbability}
+                        data-testid={`prob-${row.id}`}
+                        onChange={(e) => {
+                          const v = numOrNull(e.target.value);
+                          const bounded = v == null ? undefined : Math.min(100, Math.max(0, Math.trunc(v)));
+                          if (row.kind === "proposal") onUpdatePipeline(row.id, { winningProbability: bounded });
+                          else if (row.external) onUpdateExternal({ ...row.external, winningProbability: bounded ?? null });
+                        }}
+                        className="tabular h-8 pe-6 text-end"
+                      />
+                      <span aria-hidden className="pointer-events-none absolute end-2 top-1/2 -translate-y-1/2 text-[12px] text-hni-grey-mid">%</span>
+                    </div>
                   </td>
                   <td className="tabular px-3 py-2 text-end font-medium text-hni-black">
                     {row.value != null ? <bdi>{money(row.value)}</bdi> : "—"}
                   </td>
-                  <td className="tabular px-3 py-2 text-end text-hni-grey-dark">
+                  <td className="px-2 py-1.5 text-end">
+                    {row.kind === "external" && row.external ? (
+                      <div className="relative">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step="0.1"
+                          value={row.external.gpPct ?? ""}
+                          aria-label={p.plGpPct}
+                          data-testid={`gp-pct-${row.id}`}
+                          onChange={(e) => {
+                            const v = numOrNull(e.target.value);
+                            const bounded = v == null ? null : Math.min(100, Math.max(0, v));
+                            onUpdateExternal({ ...row.external!, gpPct: bounded });
+                          }}
+                          className="tabular h-8 pe-6 text-end"
+                        />
+                        <span aria-hidden className="pointer-events-none absolute end-2 top-1/2 -translate-y-1/2 text-[12px] text-hni-grey-mid">%</span>
+                      </div>
+                    ) : (
+                      // Proposal GP% is derived from the costing; change it there, not here.
+                      <span className="tabular text-hni-grey-dark">{row.gpPct != null ? `${row.gpPct.toFixed(1)}%` : "—"}</span>
+                    )}
+                  </td>
+                  <td className="tabular px-3 py-2 text-end text-hni-grey-dark" data-testid={`gp-amount-${row.id}`}>
                     {row.gpAmount != null ? <bdi>{money(row.gpAmount)}</bdi> : "—"}
                   </td>
                   <td className="px-2 py-1.5 text-end">

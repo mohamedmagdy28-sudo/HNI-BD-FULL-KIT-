@@ -13,6 +13,7 @@
 
 import type { CalcResult } from "./calc";
 import {
+  dealGpAmount,
   newId,
   OPEN_STAGES,
   PIPELINE_STAGES,
@@ -282,7 +283,7 @@ export function externalSheetRow(d: ExternalDeal): string[] {
     d.currency,
     d.dealValue != null ? String(d.dealValue) : "",
     pct(d.gpPct, 1),
-    d.gpAmount != null ? String(d.gpAmount) : "",
+    (() => { const gp = dealGpAmount(d.dealValue, d.gpPct, d.gpAmount); return gp != null ? String(gp) : ""; })(),
     "",
     d.projectStatus,
     d.notes,

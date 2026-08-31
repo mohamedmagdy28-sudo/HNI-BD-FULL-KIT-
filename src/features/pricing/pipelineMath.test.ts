@@ -85,6 +85,19 @@ describe("buildRows", () => {
     expect(rows[1].dateDefaulted).toBe(true);
   });
 
+  it("external GP amount is Revenue x GP% when both exist; imported figure only as fallback", () => {
+    const rows = buildRows([], [
+      makeExternal({ dealValue: 200000, gpPct: 30, gpAmount: 58800 }), // sheet had a 0.98 factor
+      makeExternal({ dealValue: 100000, gpPct: null, gpAmount: 41000 }), // no GP%: fallback
+      makeExternal({ dealValue: 100000, gpPct: 33.3, gpAmount: null }), // GP% without imported amount
+    ]);
+    expect(rows[0].gpAmount).toBe(60000); // 200,000 x 30%, not the imported 58,800
+    expect(rows[1].gpAmount).toBe(41000);
+    expect(rows[2].gpAmount).toBe(33300);
+    const t = computeTotals(rows, DEFAULT_TARGETS);
+    expect(t.achievedGp).toBe(60000 + 41000 + 33300);
+  });
+
   it("externals with badValue or nonSar flags carry null value and excluded=true", () => {
     const rows = buildRows([], [
       makeExternal(),

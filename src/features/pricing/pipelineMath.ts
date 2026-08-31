@@ -8,7 +8,7 @@
 // are COUNTED and surfaced, never silently dropped (eng review T3.1/T3.8).
 
 import { calc } from "./calc";
-import { inPipeline, OPEN_STAGES, type ExternalDeal, type Proposal, type Targets } from "./types";
+import { dealGpAmount, inPipeline, OPEN_STAGES, type ExternalDeal, type Proposal, type Targets } from "./types";
 
 export type PipelineRowData = {
   kind: "proposal" | "external";
@@ -77,7 +77,7 @@ export function buildRows(proposals: Proposal[], externals: ExternalDeal[]): Pip
       stage: d.stage,
       winningProbability: d.winningProbability,
       value: excluded ? null : d.dealValue,
-      gpAmount: excluded ? null : d.gpAmount,
+      gpAmount: excluded ? null : dealGpAmount(d.dealValue, d.gpPct, d.gpAmount),
       gpPct: d.gpPct,
       effectiveDate: d.flags.badDate ? null : d.date || null,
       dateDefaulted: !d.flags.badDate && d.stage === "Won",

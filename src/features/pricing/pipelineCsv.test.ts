@@ -223,6 +223,13 @@ describe("sheet row export", () => {
     expect(cells[13]).toBe("120000");
     expect(cells[14]).toBe("35.5%");
   });
+
+  it("externalSheetRow exports GP amount as Revenue x GP%, matching the dashboard", () => {
+    const cells = externalSheetRow(makeExternal({ dealValue: 200000, gpPct: 30, gpAmount: 58800 }));
+    expect(cells[15]).toBe("60000"); // recomputed, not the imported 58,800
+    const fallback = externalSheetRow(makeExternal({ dealValue: 100000, gpPct: null, gpAmount: 41000 }));
+    expect(fallback[15]).toBe("41000");
+  });
 });
 
 describe("toTsv and toCsv", () => {
