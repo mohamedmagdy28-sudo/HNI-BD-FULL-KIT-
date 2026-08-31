@@ -19,12 +19,15 @@
   }
 }
 
-/* A4 landscape: 11.693 x 8.268in. Zoom 0.87 shrinks a page to 11.60 x 6.53in;
-   the 0.86in vertical page margins center it with a few hundredths of slack so
+/* A4 landscape: 11.693 x 8.268in. Zoom 0.87 shrinks a page to 11.60 x 6.53in.
+   @page margin MUST stay 0: any margin gives Chrome room to print its own
+   date/title/URL header-footer lines onto the proposal. The centering bands
+   come from element margins on .doc-page instead (inside the zoomed
+   coordinate space, so 0.9in renders as ~0.78in), sized with slack so
    rounding never spills a blank sheet. */
 @page {
   size: A4 landscape;
-  margin: 0.86in 0;
+  margin: 0;
 }
 
 @media print {
@@ -47,7 +50,7 @@
     width: 13.33in;
   }
   .doc-page {
-    margin: 0 !important;
+    margin: 0.9in 0 !important;
     border: none;
     border-radius: 0;
     box-shadow: none;
@@ -65,10 +68,7 @@
     page-break-after: auto;
     break-after: auto;
   }
-  .doc-pages {
-    /* space-y margins would offset page breaks */
-  }
-  .doc-pages > * + * {
-    margin-top: 0 !important;
-  }
+  /* The screen layout's space-y sibling margins are overridden by the
+     .doc-page !important margins above, which double as the A4 centering
+     bands. */
 }
