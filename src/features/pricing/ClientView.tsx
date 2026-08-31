@@ -213,6 +213,10 @@ export function ClientView({ proposal, result, settings, onSettingsChange, onBac
     } catch {
       /* fonts API unavailable: print anyway */
     }
+    // The app cannot create the file itself; the browser's Save-as-PDF does.
+    // Surface the destination hint, let it paint, then open the dialog.
+    toast({ title: p.pdfHint });
+    await new Promise((resolve) => setTimeout(resolve, 150));
     window.print();
   };
 

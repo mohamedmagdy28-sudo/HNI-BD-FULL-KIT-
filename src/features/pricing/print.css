@@ -1,7 +1,10 @@
-/* Client-document print rules. Pages match the official template's slide size
-   (13.33in x 7.5in) exactly, so the printed PDF is indistinguishable from a
-   PowerPoint export. The visibility approach keeps layout intact; the app
-   chrome disappears and only the document prints. */
+/* Client-document print rules. On screen, pages match the official template's
+   slide size (13.33in x 7.5in). Printing targets A4 LANDSCAPE (user decision
+   2026-08-31): print dialogs ignore custom paper sizes, so the slide layout is
+   scaled onto A4 via `zoom` (which rescales the LAYOUT box, unlike transform,
+   so pagination stays correct). Small white bands top/bottom preserve the
+   slide's proportions, like printing a deck. The visibility approach keeps
+   layout intact; the app chrome disappears and only the document prints. */
 
 .doc-page {
   width: 13.33in;
@@ -16,9 +19,12 @@
   }
 }
 
+/* A4 landscape: 11.693 x 8.268in. Zoom 0.87 shrinks a page to 11.60 x 6.53in;
+   the 0.86in vertical page margins center it with a few hundredths of slack so
+   rounding never spills a blank sheet. */
 @page {
-  size: 13.33in 7.5in;
-  margin: 0;
+  size: A4 landscape;
+  margin: 0.86in 0;
 }
 
 @media print {
@@ -34,6 +40,8 @@
     inset-inline-start: 0;
     top: 0;
     margin: 0;
+    /* Scale the whole document (container included) onto A4 landscape. */
+    zoom: 0.87;
   }
   #client-document.doc-pages {
     width: 13.33in;
