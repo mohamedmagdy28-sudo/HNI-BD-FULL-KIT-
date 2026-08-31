@@ -301,7 +301,7 @@ export function PipelineTab({
           ) : (
             <>
               <div className="mt-1 flex flex-wrap items-baseline gap-x-2">
-                <bdi className="tabular text-[24px] font-semibold leading-none text-hni-black" data-testid="goal-achieved">
+                <bdi className="tabular text-[22px] font-semibold leading-none text-hni-black" data-testid="goal-achieved">
                   {money(totals.achievedGp)}
                 </bdi>
                 <span aria-hidden className="text-hni-grey-mid">|</span>
@@ -316,14 +316,14 @@ export function PipelineTab({
                 </bdi>
               </div>
               <div
-                className="mt-2.5 h-3 overflow-hidden rounded-full bg-surface-2"
+                className="mt-3 h-3 overflow-hidden rounded-full bg-surface-2"
                 role="progressbar"
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={Math.round(gpFill)}
                 aria-label={p.goalAria}
               >
-                <div className="h-full rounded-full bg-hni-magenta" style={{ width: `${gpFill}%` }} data-testid="goal-fill" />
+                <div className="h-full rounded-full bg-hni-magenta transition-[width] duration-200 motion-reduce:transition-none" style={{ width: `${gpFill}%` }} data-testid="goal-fill" />
               </div>
             </>
           )}
@@ -340,7 +340,7 @@ export function PipelineTab({
           ) : (
             <>
               <div className="mt-1 flex items-baseline gap-2">
-                <bdi className="tabular text-[24px] font-semibold leading-none text-hni-black" data-testid="booked-pct">
+                <bdi className="tabular text-[22px] font-semibold leading-none text-hni-black" data-testid="booked-pct">
                   {/* Judge F2: never floor real wins to "0%" or ceil open value away. */}
                   {p.bookedPct.replace(
                     "{n}",
@@ -349,7 +349,7 @@ export function PipelineTab({
                 </bdi>
               </div>
               <div
-                className="mt-2.5 flex h-3 overflow-hidden rounded-full bg-surface-2"
+                className="mt-3 flex h-3 overflow-hidden rounded-full bg-surface-2"
                 role="img"
                 aria-label={p.bookedAria
                   .replace("{won}", money(booked.wonValue))
@@ -357,12 +357,12 @@ export function PipelineTab({
                   .replace("{n}", String(booked.wonCount + booked.openCount))}
               >
                 <div
-                  className="h-full bg-[color:var(--status-success-fg)]"
+                  className="h-full bg-[color:var(--status-success-fg)] transition-[width] duration-200 motion-reduce:transition-none"
                   style={{ width: `${booked.pct}%` }}
                   data-testid="booked-fill"
                 />
               </div>
-              <div className="mt-1.5 flex flex-wrap gap-x-4 text-[12px] text-hni-grey-dark">
+              <div className="mt-2 flex flex-wrap gap-x-4 text-[12px] text-hni-grey-dark">
                 <span className="inline-flex items-center gap-1.5">
                   <span aria-hidden className="inline-block size-2 rounded-full bg-[color:var(--status-success-fg)]" />
                   {p.bookedWon} ({booked.wonCount})
@@ -482,8 +482,8 @@ export function PipelineTab({
                 </tr>
               )}
               {visibleRows.map((row) => (
-                <tr key={row.id} className="border-b border-line-1 last:border-b-0 hover:bg-surface-1" data-testid={`pipeline-row-${row.id}`}>
-                  <td className="sticky start-0 z-10 cursor-pointer bg-surface-0 px-3 py-2 font-medium text-hni-black hover:underline" onClick={() => setDrawerRow(row)}>
+                <tr key={row.id} className="group border-b border-line-1 last:border-b-0 hover:bg-surface-1" data-testid={`pipeline-row-${row.id}`}>
+                  <td className="sticky start-0 z-10 cursor-pointer bg-surface-0 px-3 py-2 font-medium text-hni-black hover:underline group-hover:bg-surface-1" onClick={() => setDrawerRow(row)}>
                     {row.company || "—"}
                     {row.kind === "external" && (
                       <span className="ms-2"><StatusBadge tone="neutral">{p.externalTag}</StatusBadge></span>
