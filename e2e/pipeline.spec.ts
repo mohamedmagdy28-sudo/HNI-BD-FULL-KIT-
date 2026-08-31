@@ -1,3 +1,4 @@
+import JSZip from "jszip";
 import { test, expect } from "./fixtures";
 import { gotoWithLanguage, langFromProject } from "./helpers/locale";
 import type { Page } from "@playwright/test";
@@ -182,6 +183,51 @@ test("CSV import backfills external deals into the table and totals", async ({ p
   await stcRow.getByRole("button").last().click();
   await expect(page.locator("[data-testid^='pipeline-row-']")).toHaveCount(3);
   expect(digits(await page.getByTestId("kpi-open").locator(".tabular").first().textContent())).toBe(0);
+});
+
+test("XLSX import reads typed cells straight into the dashboard", async ({ page }, testInfo) => {
+  const lang = langFromProject(testInfo.project.name);
+  await gotoWithLanguage(page, "/", lang);
+  await createProposalWithProgram(page);
+  await page.getByTestId("pipeline-toggle").click();
+
+  // A minimal Google-Sheets-shaped workbook: shared strings, a date serial
+  // styled as a date, percent fractions styled as percents, plain numbers.
+  const headers = [
+    "Date", "Source", "Deal Type", "Sector", "Primary Service", "Company", "Project Name", "Stage",
+    "Winning Probability", "Start Date of Delivery", "End Date if Delivery", "PO Number", "Currency",
+    "Actual Deal Value (AED)", "GP%", "Actual Expected GP amt. (AED)", "Traget Achivement Contribution %",
+    "Project Status", "Notes",
+  ];
+  const shared = [...headers, "Aramco", "AC Wave 2", "Won", "SAR"];
+  const si = (s: string) => shared.indexOf(s);
+  const colRef = (c: number) => (c < 26 ? String.fromCharCode(65 + c) : `A${String.fromCharCode(65 + c - 26)}`);
+  const headerXml = headers.map((h, c) => `<c r="${colRef(c)}1" t="s"><v>${si(h)}</v></c>`).join("");
+  const dataXml =
+    `<c r="A2" s="1"><v>46249</v></c>` + // 2026-08-15 as a date serial
+    `<c r="F2" t="s"><v>${si("Aramco")}</v></c><c r="G2" t="s"><v>${si("AC Wave 2")}</v></c>` +
+    `<c r="H2" t="s"><v>${si("Won")}</v></c><c r="I2" s="2"><v>1</v></c>` +
+    `<c r="M2" t="s"><v>${si("SAR")}</v></c><c r="N2"><v>120000</v></c>` +
+    `<c r="O2" s="2"><v>0.355</v></c><c r="P2"><v>42600</v></c>`;
+  const zip = new JSZip();
+  zip.file("xl/workbook.xml", `<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Pipeline" sheetId="1" r:id="rId1"/></sheets></workbook>`);
+  zip.file("xl/_rels/workbook.xml.rels", `<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`);
+  zip.file("xl/sharedStrings.xml", `<?xml version="1.0"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${shared.map((s) => `<si><t>${s.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</t></si>`).join("")}</sst>`);
+  zip.file("xl/styles.xml", `<?xml version="1.0"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="0.0%"/></numFmts><cellXfs count="3"><xf numFmtId="0"/><xf numFmtId="14"/><xf numFmtId="164"/></cellXfs></styleSheet>`);
+  zip.file("xl/worksheets/sheet1.xml", `<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1">${headerXml}</row><row r="2">${dataXml}</row></sheetData></worksheet>`);
+  const buffer = Buffer.from(await zip.generateAsync({ type: "nodebuffer" }));
+
+  await page.getByTestId("import-csv-input").setInputFiles({
+    name: "pipeline.xlsx",
+    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    buffer,
+  });
+
+  await expect(page.locator("[data-testid^='pipeline-row-']")).toHaveCount(1);
+  await expect(page.locator("[data-testid^='pipeline-row-']")).toContainText("Aramco");
+  expect(digits(await page.getByTestId("kpi-achieved-rev").locator(".tabular").first().textContent())).toBe(120000);
+  expect(digits(await page.getByTestId("kpi-achieved-gp").locator(".tabular").first().textContent())).toBe(42600);
+  await expect(page.getByTestId("excluded-note")).toHaveCount(0);
 });
 
 test("sent-lock: quote fields stay locked while pipeline fields stay editable", async ({ page }, testInfo) => {

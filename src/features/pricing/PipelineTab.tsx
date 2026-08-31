@@ -19,6 +19,7 @@ import {
   externalSheetRow,
   isNewSinceLastCopy,
   parsePipelineCsv,
+  parsePipelineRows,
   proposalSheetRow,
   toCsv,
   toTsv,
@@ -152,7 +153,17 @@ export function PipelineTab({
 
   const importCsv = async (file: File) => {
     try {
-      const { deals, report } = parsePipelineCsv(await file.text(), proposals);
+      // Branch on the ZIP magic bytes (PK), not the extension: a renamed
+      // Google Sheets download still imports. Anything else parses as CSV.
+      const head = new Uint8Array((await file.slice(0, 2).arrayBuffer()) ?? new ArrayBuffer(0));
+      let parsed;
+      if (head[0] === 0x50 && head[1] === 0x4b) {
+        const { parseXlsxGrid } = await import("./xlsx");
+        parsed = parsePipelineRows(await parseXlsxGrid(await file.arrayBuffer()), proposals);
+      } else {
+        parsed = parsePipelineCsv(await file.text(), proposals);
+      }
+      const { deals, report } = parsed;
       if (report.imported === 0) {
         toast({ title: p.importFailed, variant: "destructive" });
         return;
@@ -297,7 +308,7 @@ export function PipelineTab({
       <input
         ref={importInputRef}
         type="file"
-        accept=".csv,text/csv"
+        accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         className="hidden"
         aria-hidden
         tabIndex={-1}

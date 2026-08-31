@@ -146,7 +146,14 @@ export function parsePipelineCsv(
   text: string,
   proposals: Proposal[],
 ): { deals: ExternalDeal[]; report: ImportReport } {
-  const rows = parseCsv(text);
+  return parsePipelineRows(parseCsv(text), proposals);
+}
+
+/** Shared row-grid parser: the CSV path and the .xlsx path both land here. */
+export function parsePipelineRows(
+  rows: string[][],
+  proposals: Proposal[],
+): { deals: ExternalDeal[]; report: ImportReport } {
   if (rows.length === 0) return { deals: [], report: emptyReport() };
   const headers = rows[0].map((h) => h.trim());
   const col = (name: string) => headers.findIndex((h) => h.toLowerCase() === name.toLowerCase());

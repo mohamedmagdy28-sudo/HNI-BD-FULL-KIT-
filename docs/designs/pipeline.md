@@ -173,3 +173,7 @@ NO UNRESOLVED DECISIONS
 3. **Build gate defaults live in code.** The waived CSV gate's format unknowns are isolated as constants documented at the top of `pipelineCsv.ts` (percents "50%", plain integer money, DD/MM dates). Tune after the first real paste test.
 
 Verified: 88 unit tests, 176 e2e (22 tests x 8 viewport/language projects), visual check EN LTR + AR RTL.
+
+## AMENDMENT: direct .xlsx import (2026-08-31)
+
+User request: upload the pipeline sheet as an Excel file instead of CSV. Added `src/features/pricing/xlsx.ts`, a minimal first-worksheet reader built on JSZip (already in the tree; promoted from devDependencies, loaded lazily so it stays out of the main bundle). It converts typed cells to the exact grid strings the shared `parsePipelineRows` parser expects: date-styled serials become ISO dates, percent-styled fractions become "50%", numbers stay plain. This sidesteps the CSV format-guessing for import entirely; the export-side defaults still need the first real paste test. The import button accepts both formats and branches on the ZIP magic bytes, so a renamed file still imports. Dev note: `optimizeDeps.include: ["jszip"]` prevents a Vite dev full-page reload on first lazy load.
