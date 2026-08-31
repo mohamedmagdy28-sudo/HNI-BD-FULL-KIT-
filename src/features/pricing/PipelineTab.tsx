@@ -485,9 +485,6 @@ export function PipelineTab({
                 <tr key={row.id} className="group border-b border-line-1 last:border-b-0 hover:bg-surface-1" data-testid={`pipeline-row-${row.id}`}>
                   <td className="sticky start-0 z-10 cursor-pointer bg-surface-0 px-3 py-2 font-medium text-hni-black hover:underline group-hover:bg-surface-1" onClick={() => setDrawerRow(row)}>
                     {row.company || "—"}
-                    {row.kind === "external" && (
-                      <span className="ms-2"><StatusBadge tone="neutral">{p.externalTag}</StatusBadge></span>
-                    )}
                   </td>
                   <td className="cursor-pointer px-3 py-2 text-hni-grey-dark" onClick={() => setDrawerRow(row)}>
                     {row.projectName || "—"}
