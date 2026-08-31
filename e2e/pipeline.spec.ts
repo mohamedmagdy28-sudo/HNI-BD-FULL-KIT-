@@ -274,11 +274,15 @@ test("mark as sent puts the proposal in the pipeline with its real amount and de
   await expect(row).toHaveCount(1);
   await expect(row).toContainText("Maaden Phosphate");
   await expect(row).toContainText("36,450"); // netPrice, not 0
-  await expect(row).toContainText("9,450"); // derived GP amount, not empty
   expect(digits(await page.getByTestId("kpi-open").locator(".tabular").first().textContent())).toBe(36450);
 
+  // Weighted GP = prob x value x GP%: empty prob on an open deal = SAR 0.
+  expect(digits(await row.locator("[data-testid^='gp-amount-']").textContent())).toBe(0);
+  await page.locator("[data-testid^='prob-']").first().fill("100");
+  expect(digits(await row.locator("[data-testid^='gp-amount-']").textContent())).toBe(9450);
+
   // GP% on a proposal row is editable (post-execution adhocs change it):
-  // override 40 -> GP amount recomputes; clearing reverts to derived.
+  // override 40 -> weighted GP recomputes; clearing reverts to derived.
   const gpInput = row.locator("[data-testid^='gp-pct-']");
   await expect(gpInput).toHaveAttribute("placeholder", "25.9");
   await gpInput.fill("40");

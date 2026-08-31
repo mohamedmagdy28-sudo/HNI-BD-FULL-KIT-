@@ -87,6 +87,23 @@ describe("buildRows", () => {
     expect(cleared.gpAmount).toBe(50000);
   });
 
+  it("weighted GP = probability x value x GP%: Won forced to 100, Lost to 0, empty prob = 0", () => {
+    const rows = buildRows(
+      [
+        makeProposal({ stage: "Won", decidedAt: "2026-08-01" }), // GP 50,000, no prob typed
+        makeProposal({ stage: "Proposal", winningProbability: 70 }),
+        makeProposal({ stage: "Proposal" }), // open, empty prob
+        makeProposal({ stage: "Lost", winningProbability: 90 }),
+      ],
+      [makeExternal({ flags: { badValue: true } })], // excluded: no GP basis
+    );
+    expect(rows[0].weightedGp).toBe(50000); // Won: always 100%
+    expect(rows[1].weightedGp).toBe(35000); // 70% x 50,000
+    expect(rows[2].weightedGp).toBe(0); // empty prob on open = 0%
+    expect(rows[3].weightedGp).toBe(0); // Lost: 0% even with a typed prob
+    expect(rows[4].weightedGp).toBeNull(); // excluded row: no basis
+  });
+
   it("effectiveDate prefers decidedAt over the proposal date and flags defaulted Won dates", () => {
     const decided = makeProposal({ stage: "Won", decidedAt: "2026-08-20" });
     const defaulted = makeProposal({ stage: "Won" });

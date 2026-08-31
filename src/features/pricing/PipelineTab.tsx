@@ -459,7 +459,7 @@ export function PipelineTab({
                 <th className="w-24 px-2 py-2 text-end font-medium">{p.plProbability}</th>
                 <th className="w-32 px-3 py-2 text-end font-medium">{p.plRevenue}</th>
                 <th className="w-24 px-2 py-2 text-end font-medium">{p.plGpPct}</th>
-                <th className="w-32 px-3 py-2 text-end font-medium">{p.plGpAmount}</th>
+                <th className="w-32 px-3 py-2 text-end font-medium">{p.plWeightedGp}</th>
                 <th className="w-20 px-2 py-2" />
               </tr>
             </thead>
@@ -552,7 +552,7 @@ export function PipelineTab({
                     </div>
                   </td>
                   <td className="tabular px-3 py-2 text-end text-hni-grey-dark" data-testid={`gp-amount-${row.id}`}>
-                    {row.gpAmount != null ? <bdi>{money(row.gpAmount)}</bdi> : "—"}
+                    {row.weightedGp != null ? <bdi>{money(row.weightedGp)}</bdi> : "—"}
                   </td>
                   <td className="px-2 py-1.5 text-end">
                     {row.kind === "external" ? (

@@ -21,6 +21,13 @@ export type PipelineRowData = {
   value: number | null;
   gpAmount: number | null;
   gpPct: number | null;
+  /**
+   * Probability-weighted GP (user rule 2026-08-31): probability x value x GP%.
+   * Won is always 100%, Lost 0%, open stages use the typed probability with
+   * empty meaning 0%. Null only when the row has no GP basis (excluded rows).
+   * Dashboard-only: the sheet export keeps plain GP for sheet compatibility.
+   */
+  weightedGp: number | null;
   /** ISO date driving period attribution; null = excluded from period math. */
   effectiveDate: string | null;
   /** Achieved date was defaulted (imports without a parseable decided date), flagged on the dashboard (T3.2). */
@@ -46,6 +53,12 @@ export type PipelineTotals = {
   gpTargetPct: number | null;
 };
 
+function weightedGpOf(stage: string, winningProbability: number | null, gpAmount: number | null): number | null {
+  if (gpAmount == null) return null;
+  const prob = stage === "Won" ? 100 : stage === "Lost" ? 0 : (winningProbability ?? 0);
+  return Math.round((gpAmount * prob) / 100);
+}
+
 export function buildRows(proposals: Proposal[], externals: ExternalDeal[]): PipelineRowData[] {
   const rows: PipelineRowData[] = [];
   for (const p of proposals) {
@@ -66,6 +79,7 @@ export function buildRows(proposals: Proposal[], externals: ExternalDeal[]): Pip
       value: result.netPrice,
       gpAmount,
       gpPct,
+      weightedGp: weightedGpOf(p.pipeline.stage!, p.pipeline.winningProbability ?? null, gpAmount),
       effectiveDate: p.pipeline.decidedAt ?? p.date ?? null,
       dateDefaulted: !p.pipeline.decidedAt && (p.pipeline.stage === "Won" || p.pipeline.stage === "Lost"),
       excluded: false,
@@ -74,6 +88,7 @@ export function buildRows(proposals: Proposal[], externals: ExternalDeal[]): Pip
   }
   for (const d of externals) {
     const excluded = Boolean(d.flags.badValue || d.flags.nonSar);
+    const extGpAmount = excluded ? null : dealGpAmount(d.dealValue, d.gpPct, d.gpAmount);
     rows.push({
       kind: "external",
       id: d.id,
@@ -82,8 +97,9 @@ export function buildRows(proposals: Proposal[], externals: ExternalDeal[]): Pip
       stage: d.stage,
       winningProbability: d.winningProbability,
       value: excluded ? null : d.dealValue,
-      gpAmount: excluded ? null : dealGpAmount(d.dealValue, d.gpPct, d.gpAmount),
+      gpAmount: extGpAmount,
       gpPct: d.gpPct,
+      weightedGp: weightedGpOf(d.stage, d.winningProbability, extGpAmount),
       effectiveDate: d.flags.badDate ? null : d.date || null,
       dateDefaulted: !d.flags.badDate && d.stage === "Won",
       excluded,
