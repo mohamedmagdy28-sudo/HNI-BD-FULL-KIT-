@@ -1,8 +1,15 @@
-import { useRef, type ReactNode } from "react";
-import { ArrowLeft, ImagePlus, Printer, X } from "lucide-react";
+import { useRef, useState, type ReactNode } from "react";
+import { ArrowLeft, FileDown, ImagePlus, Printer, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
-import { formatCurrency, useI18n } from "@/lib/i18n";
+import { formatCurrency, getPricingDict, useI18n, type Lang } from "@/lib/i18n";
+import { hasDescriptions as computeHasDescriptions } from "./documentPredicates";
 import type { CalcResult } from "./calc";
 import { fileToLogoDataUrl } from "./logo";
 import { sectionKindLabel, type Proposal, type Settings } from "./types";
@@ -146,6 +153,58 @@ export function ClientView({ proposal, result, settings, onSettingsChange, onBac
   const signatureInputRef = useRef<HTMLInputElement>(null);
   const stampInputRef = useRef<HTMLInputElement>(null);
 
+  const [exportingLang, setExportingLang] = useState<Lang | null>(null);
+
+  const fetchAsDataUrl = async (url: string): Promise<string | null> => {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      return await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error("read failed"));
+        reader.readAsDataURL(blob);
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  const exportDeck = async (deckLang: Lang) => {
+    if (exportingLang) return;
+    setExportingLang(deckLang);
+    try {
+      // Dynamic import keeps pptxgenjs out of the initial bundle (eng review 5A).
+      const exporter = await import("./pptExport");
+      const base = import.meta.env.BASE_URL;
+      const [coverJpg, logoPng] = await Promise.all([
+        fetchAsDataUrl(`${base}brand/proposal-cover.jpg`),
+        fetchAsDataUrl(`${base}brand/logo-primary.png`),
+      ]);
+      const pres = exporter.buildProposalDeck({
+        proposal,
+        result,
+        settings,
+        dict: getPricingDict(deckLang),
+        lang: deckLang,
+        assets: { coverJpg, logoPng },
+        termsPage1: TERMS_PAGE_1,
+        termsPage2: TERMS_PAGE_2,
+        bankDetails: BANK_DETAILS,
+      });
+      await pres.writeFile({ fileName: exporter.proposalFileName(proposal.clientName, proposal.date) });
+      if (deckLang === "ar") toast({ title: p.exportArNotice });
+    } catch (err) {
+      // A stale tab after a redeploy 404s the lazy chunk (eng review T6.2).
+      const msg = err instanceof Error ? err.message : "";
+      const chunkFailure = /dynamically imported module|Failed to fetch|Importing a module script failed/i.test(msg);
+      toast({ title: chunkFailure ? p.exportUpdateRetry : p.exportError, variant: "destructive" });
+    } finally {
+      setExportingLang(null);
+    }
+  };
+
   const intake = (field: "signatureImage" | "stampImage") => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -166,7 +225,7 @@ export function ClientView({ proposal, result, settings, onSettingsChange, onBac
 
   const money = (v: number) => formatCurrency(v, locale);
   const groupLabel = sectionKindLabel(proposal.sectionLabel, p);
-  const hasDescriptions = proposal.programs.some((x) => x.description.trim() !== "");
+  const hasDescriptions = computeHasDescriptions(proposal.programs);
   const proposedIn = proposal.date
     ? new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(new Date(`${proposal.date}T00:00:00`))
     : "";
@@ -213,6 +272,22 @@ export function ClientView({ proposal, result, settings, onSettingsChange, onBac
               )}
             </div>
           ))}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" disabled={exportingLang !== null} data-testid="export-ppt">
+                <FileDown className="size-4" aria-hidden />
+                {exportingLang ? p.exporting : p.exportPpt}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem data-testid="export-ppt-en" onSelect={() => void exportDeck("en")}>
+                {p.deckEn}
+              </DropdownMenuItem>
+              <DropdownMenuItem data-testid="export-ppt-ar" onSelect={() => void exportDeck("ar")}>
+                {p.deckAr}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button size="sm" data-testid="client-view-print" onClick={print}>
             <Printer className="size-4" aria-hidden />
             {p.print}

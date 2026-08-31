@@ -1,6 +1,21 @@
+import { readFileSync } from "node:fs";
+import JSZip from "jszip";
 import { test, expect } from "./fixtures";
 import { gotoWithLanguage, langFromProject } from "./helpers/locale";
-import type { Page } from "@playwright/test";
+import type { Download, Page } from "@playwright/test";
+
+/** Unzips a downloaded .pptx and returns slide XML by filename. */
+async function unzipDownload(download: Download): Promise<Map<string, string>> {
+  const path = await download.path();
+  const zip = await JSZip.loadAsync(readFileSync(path!));
+  const slides = new Map<string, string>();
+  for (const name of Object.keys(zip.files)) {
+    if (name.startsWith("ppt/slides/slide") && name.endsWith(".xml")) {
+      slides.set(name, await zip.files[name].async("string"));
+    }
+  }
+  return slides;
+}
 
 /**
  * Pricing & Costing Calculator flows (design: docs/designs/pricing-costing-calculator.md).
@@ -304,6 +319,74 @@ test("signature and stamp upload once and appear on every signature block", asyn
   await page.getByTestId("signature-remove").click();
   await expect(page.getByTestId("doc-signature")).toHaveCount(0);
   await expect(page.getByTestId("doc-stamp")).toHaveCount(3);
+});
+
+test("export PPT downloads a valid six-slide deck with the proposal's numbers", async ({ page }, testInfo) => {
+  const lang = langFromProject(testInfo.project.name);
+  await gotoWithLanguage(page, "/", lang);
+  await createProposalWithProgram(page);
+  await page.getByTestId("client-name").fill("Acme Corp");
+  await page.getByTestId("open-client-view").click();
+
+  await page.getByTestId("export-ppt").click();
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByTestId("export-ppt-en").click(),
+  ]);
+  expect(download.suggestedFilename()).toBe(`hni-proposal-acme-corp-${new Date().toISOString().slice(0, 10)}.pptx`);
+
+  const slides = await unzipDownload(download);
+  expect(slides.size).toBe(6);
+  expect(slides.get("ppt/slides/slide1.xml")).toContain("Acme Corp");
+  // cost 27,000 at 35% markup, 15% VAT: net 36,450 + 5,468 = 41,918
+  expect(slides.get("ppt/slides/slide2.xml")).toContain("SAR 41,918");
+  expect(slides.get("ppt/slides/slide5.xml")).toContain("SA1080000151608010789276");
+
+  // Button recovers for the next export.
+  await expect(page.getByTestId("export-ppt")).toBeEnabled();
+});
+
+test("Arabic deck exports from any UI language and shows the verify notice", async ({ page }, testInfo) => {
+  const lang = langFromProject(testInfo.project.name);
+  await gotoWithLanguage(page, "/", lang);
+  await createProposalWithProgram(page);
+  await page.getByTestId("open-client-view").click();
+
+  await page.getByTestId("export-ppt").click();
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByTestId("export-ppt-ar").click(),
+  ]);
+  const slides = await unzipDownload(download);
+  // T1: Arabic deck money is all-Latin SAR; the Arabic currency symbol never appears on slide 2.
+  expect(slides.get("ppt/slides/slide2.xml")).toContain("SAR 36,450");
+  expect(slides.get("ppt/slides/slide2.xml")).not.toContain("ر.س");
+  // Legal terms stay English in the Arabic deck.
+  expect(slides.get("ppt/slides/slide3.xml")).toContain("Training material and delivery will be conducted in English.");
+
+  const notice =
+    lang === "ar"
+      ? "النسخة العربية: تحقق منها في PowerPoint قبل إرسالها إلى العميل."
+      : "Arabic deck: verify in PowerPoint before sending to a client.";
+  await expect(page.getByText(notice).first()).toBeVisible();
+});
+
+test("export works from a document opened via the archive", async ({ page }, testInfo) => {
+  const lang = langFromProject(testInfo.project.name);
+  await gotoWithLanguage(page, "/", lang);
+  await createProposalWithProgram(page);
+  await page.getByTestId("mark-sent").click();
+  await page.getByTestId("documents-toggle").click();
+  await page.locator("[data-testid^='open-document-']").click();
+  await expect(page.getByTestId("client-document")).toBeVisible();
+
+  await page.getByTestId("export-ppt").click();
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByTestId("export-ppt-en").click(),
+  ]);
+  const slides = await unzipDownload(download);
+  expect(slides.size).toBe(6);
 });
 
 test("documents archive files sent proposals and reopens their document", async ({ page }, testInfo) => {

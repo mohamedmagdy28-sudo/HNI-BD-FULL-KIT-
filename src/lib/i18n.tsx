@@ -44,6 +44,14 @@ const dict = {
       clientView: "Client view",
       back: "Back to costing",
       print: "Print / Save PDF",
+      exportPpt: "Export PPT",
+      deckEn: "English deck",
+      deckAr: "Arabic deck",
+      exporting: "Generating…",
+      exportArNotice: "Arabic deck: verify in PowerPoint before sending to a client.",
+      exportUpdateRetry: "The app was updated. Reload the page and try the export again.",
+      exportError: "Export failed. Nothing was downloaded.",
+      pptMore: "+ {n} more",
       deleteProposal: "Delete proposal",
       client: "Client",
       proposalTitle: "Proposal title",
@@ -170,6 +178,14 @@ const dict = {
       clientView: "نسخة العميل",
       back: "العودة إلى التكاليف",
       print: "طباعة / حفظ PDF",
+      exportPpt: "تصدير PPT",
+      deckEn: "النسخة الإنجليزية",
+      deckAr: "النسخة العربية",
+      exporting: "جارٍ الإنشاء…",
+      exportArNotice: "النسخة العربية: تحقق منها في PowerPoint قبل إرسالها إلى العميل.",
+      exportUpdateRetry: "تم تحديث التطبيق. أعد تحميل الصفحة وحاول التصدير مجدداً.",
+      exportError: "فشل التصدير. لم يتم تنزيل أي ملف.",
+      pptMore: "+ {n} أخرى",
       deleteProposal: "حذف العرض",
       client: "العميل",
       proposalTitle: "عنوان العرض",
@@ -300,6 +316,11 @@ export function useI18n() {
   const ctx = useContext(I18nContext);
   if (!ctx) throw new Error("useI18n must be used inside I18nProvider");
   return ctx;
+}
+
+/** The pricing dictionary for an explicit language, independent of the UI language (per-export language, eng review T4). */
+export function getPricingDict(lang: Lang): Dict["pricing"] {
+  return dict[lang].pricing as unknown as Dict["pricing"];
 }
 
 export function formatCurrency(value: number, locale: string) {

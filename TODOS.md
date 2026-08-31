@@ -38,4 +38,32 @@
 **Priority:** P3
 **Depends on:** Client view (task T4 of the eng review) shipped.
 
+### Financial Breakdown page overflow (print)
+
+**What:** Handle table overflow on the client document's Financial Breakdown page: many programs or long descriptions silently overflow the fixed 13.33x7.5in page and get clipped in print.
+**Why:** A 12-program proposal today prints with missing rows and no warning. Same class of bug the PPT export caps with "+N more" (eng review T6.3).
+**Context:** `.doc-page` is `overflow:hidden` at fixed size; start in ClientView's breakdown page. Options: paginate onto a second breakdown page, or cap with a continuation note.
+**Effort:** S · **Priority:** P2 · **Depends on:** nothing.
+
+### Single-slide breakdown export
+
+**What:** Export just the Financial Breakdown slide as a .pptx for merging into larger client decks.
+**Why:** The deck-merge job (rejected Approach A in docs/designs/ppt-export.md) resurfaces whenever the financial section joins a bigger presentation; manual rebuilding today.
+**Context:** ~20 minutes after the full exporter ships: reuse slide 2's builder with a one-slide presentation. Gate on someone actually asking.
+**Effort:** S · **Priority:** P3 · **Depends on:** PPT exporter shipped.
+
+### Per-export language for the PDF
+
+**What:** Give Print/Save PDF the same English/Arabic choice the PPT export has, instead of following UI language.
+**Why:** Same mixed-language workflow argument (work in AR UI, send EN document).
+**Context:** ClientView renders from global i18n dir/lang; an override needs a scoped language context around the document render. Decide after living with the PPT language menu.
+**Effort:** S-M · **Priority:** P3 · **Depends on:** PPT export shipped (UX reference).
+
+### Terms management by engagement type (feature B, next design session)
+
+**What:** Move terms correctness into the app: engagement types (Stand Alone Workshop / Development Track / Assessment Center) each carry their own Terms & Conditions variant; Project Assumptions become per-proposal editable content seeded from the type's default. PDF and PPT both render from this single source.
+**Why:** The eng-review gate (docs/designs/ppt-export.md, Post-Gate Revision) proved the team edits terms per engagement type today, by hand, in PowerPoint. That rule belongs in the app.
+**Context:** User holds an Assessment Center proposal PDF containing that variant's terms; collect it at session start. Extends projectType or adds a parallel termsVariant field; assumptions likely `string[]` on Proposal with a small editor. Run /office-hours for this feature.
+**Effort:** M · **Priority:** P2 · **Depends on:** PPT export shipped; Assessment Center PDF provided.
+
 ## Completed
