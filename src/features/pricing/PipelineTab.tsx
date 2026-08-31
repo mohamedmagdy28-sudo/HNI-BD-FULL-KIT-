@@ -20,6 +20,7 @@ import {
   isNewSinceLastCopy,
   parsePipelineCsv,
   parsePipelineRows,
+  SHEET_HEADERS,
   proposalSheetRow,
   toCsv,
   toTsv,
@@ -159,7 +160,9 @@ export function PipelineTab({
       let parsed;
       if (head[0] === 0x50 && head[1] === 0x4b) {
         const { parseXlsxGrid } = await import("./xlsx");
-        parsed = parsePipelineRows(await parseXlsxGrid(await file.arrayBuffer()), proposals);
+        // Header hints steer multi-sheet workbooks to the pipeline tab, not
+        // whichever sheet happens to be first (hidden archives included).
+        parsed = parsePipelineRows(await parseXlsxGrid(await file.arrayBuffer(), SHEET_HEADERS), proposals);
       } else {
         parsed = parsePipelineCsv(await file.text(), proposals);
       }

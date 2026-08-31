@@ -15,7 +15,13 @@ type Cell =
   | { t: "pct"; v: number }
   | null;
 
+type SheetSpec = { name: string; rows: Cell[][]; hidden?: boolean };
+
 async function buildXlsx(rows: Cell[][]): Promise<ArrayBuffer> {
+  return buildWorkbook([{ name: "Sheet1", rows }]);
+}
+
+async function buildWorkbook(specs: SheetSpec[]): Promise<ArrayBuffer> {
   const shared: string[] = [];
   const sharedIndex = (s: string) => {
     const i = shared.indexOf(s);
@@ -39,21 +45,23 @@ async function buildXlsx(rows: Cell[][]): Promise<ArrayBuffer> {
 <cellXfs count="3"><xf numFmtId="0"/><xf numFmtId="14" applyNumberFormat="1"/><xf numFmtId="164" applyNumberFormat="1"/></cellXfs>
 </styleSheet>`;
   const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-  const rowsXml = rows
-    .map((cells, r) => {
-      const cellsXml = cells
-        .map((cell, c) => {
-          if (cell === null) return "";
-          const ref = `${colRef(c)}${r + 1}`;
-          if (cell.t === "s") return `<c r="${ref}" t="s"><v>${sharedIndex(cell.v)}</v></c>`;
-          if (cell.t === "date") return `<c r="${ref}" s="1"><v>${cell.v}</v></c>`;
-          if (cell.t === "pct") return `<c r="${ref}" s="2"><v>${cell.v}</v></c>`;
-          return `<c r="${ref}"><v>${cell.v}</v></c>`;
-        })
-        .join("");
-      return `<row r="${r + 1}">${cellsXml}</row>`;
-    })
-    .join("");
+  const sheetXml = (rows: Cell[][]) =>
+    rows
+      .map((cells, r) => {
+        const cellsXml = cells
+          .map((cell, c) => {
+            if (cell === null) return "";
+            const ref = `${colRef(c)}${r + 1}`;
+            if (cell.t === "s") return `<c r="${ref}" t="s"><v>${sharedIndex(cell.v)}</v></c>`;
+            if (cell.t === "date") return `<c r="${ref}" s="1"><v>${cell.v}</v></c>`;
+            if (cell.t === "pct") return `<c r="${ref}" s="2"><v>${cell.v}</v></c>`;
+            return `<c r="${ref}"><v>${cell.v}</v></c>`;
+          })
+          .join("");
+        return `<row r="${r + 1}">${cellsXml}</row>`;
+      })
+      .join("");
+  const sheetsXml = specs.map((s) => sheetXml(s.rows)); // fills `shared` before it is written
   const zip = new JSZip();
   zip.file(
     "[Content_Types].xml",
@@ -61,21 +69,27 @@ async function buildXlsx(rows: Cell[][]): Promise<ArrayBuffer> {
   );
   zip.file(
     "xl/workbook.xml",
-    `<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Pipeline" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+    `<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${specs
+      .map((s, i) => `<sheet name="${esc(s.name)}" sheetId="${i + 1}"${s.hidden ? ' state="hidden"' : ""} r:id="rId${i + 1}"/>`)
+      .join("")}</sheets></workbook>`,
   );
   zip.file(
     "xl/_rels/workbook.xml.rels",
-    `<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`,
+    `<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${specs
+      .map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`)
+      .join("")}</Relationships>`,
   );
   zip.file(
     "xl/sharedStrings.xml",
     `<?xml version="1.0"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${shared.length}" uniqueCount="${shared.length}">${shared.map((s) => `<si><t>${esc(s)}</t></si>`).join("")}</sst>`,
   );
   zip.file("xl/styles.xml", styles);
-  zip.file(
-    "xl/worksheets/sheet1.xml",
-    `<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${rowsXml}</sheetData></worksheet>`,
-  );
+  specs.forEach((_, i) => {
+    zip.file(
+      `xl/worksheets/sheet${i + 1}.xml`,
+      `<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${sheetsXml[i]}</sheetData></worksheet>`,
+    );
+  });
   return zip.generateAsync({ type: "arraybuffer" });
 }
 
@@ -118,6 +132,36 @@ describe("parseXlsxGrid", () => {
     zip.file("hello.txt", "not a spreadsheet");
     const buf = await zip.generateAsync({ type: "arraybuffer" });
     await expect(parseXlsxGrid(buf)).rejects.toThrow();
+  });
+
+  it("skips hidden sheets: an archival first sheet never gets imported", async () => {
+    const buf = await buildWorkbook([
+      { name: "Sales Data 2025", hidden: true, rows: [[S("Old"), S("History")], [S("stale"), S("data")]] },
+      { name: "Sales Data 2026", rows: [[S("Fresh")], [S("current")]] },
+    ]);
+    const grid = await parseXlsxGrid(buf);
+    expect(grid[0]).toEqual(["Fresh"]);
+  });
+
+  it("header hints pick the matching sheet even when it is not first", async () => {
+    const pipelineHeader = SHEET_HEADERS.map(S);
+    const buf = await buildWorkbook([
+      { name: "Proposal Tracker", rows: [[S("Client"), S("Status"), S("Owner")], [S("x"), S("y"), S("z")]] },
+      { name: "Sales Data 2026", rows: [pipelineHeader, [null, null, null, null, null, S("Aramco"), S("AC Wave 2"), S("Won")]] },
+    ]);
+    const grid = await parseXlsxGrid(buf, SHEET_HEADERS);
+    expect(grid[0][5]).toBe("Company");
+    const { deals } = parsePipelineRows(grid, []);
+    expect(deals).toHaveLength(1);
+    expect(deals[0].company).toBe("Aramco");
+  });
+
+  it("without hints the first visible sheet wins (backward compatible)", async () => {
+    const buf = await buildWorkbook([
+      { name: "First", rows: [[S("A")]] },
+      { name: "Second", rows: [[S("B")]] },
+    ]);
+    expect((await parseXlsxGrid(buf))[0]).toEqual(["A"]);
   });
 
   it("feeds the pipeline parser end to end: typed cells need no format guessing", async () => {

@@ -87,21 +87,33 @@ function buildStyleKinds(stylesXml: string | null): CellKind[] {
  * First worksheet of an .xlsx as a string grid, aligned by column reference so
  * omitted (empty) cells keep the columns lined up with the header row.
  */
-export async function parseXlsxGrid(data: ArrayBuffer): Promise<string[][]> {
+export async function parseXlsxGrid(data: ArrayBuffer, headerHints: readonly string[] = []): Promise<string[][]> {
   const zip = await JSZip.loadAsync(data);
   const read = (path: string) => zip.file(path)?.async("string") ?? null;
 
   const workbook = await read("xl/workbook.xml");
   if (workbook === null) throw new Error("not an xlsx workbook");
-  const firstSheetRid = /<sheet\s[^>]*r:id="([^"]+)"/.exec(workbook)?.[1];
   const rels = (await read("xl/_rels/workbook.xml.rels")) ?? "";
-  let sheetPath = "xl/worksheets/sheet1.xml";
-  if (firstSheetRid) {
-    const rel = new RegExp(`<Relationship[^>]*Id="${firstSheetRid}"[^>]*Target="([^"]+)"`).exec(rels)?.[1];
-    if (rel) sheetPath = rel.startsWith("/") ? rel.slice(1) : `xl/${rel.replace(/^\.\//, "")}`;
+
+  // All sheets, in workbook order, skipping hidden ones: a Google Sheets
+  // workbook often carries a hidden or archival sheet FIRST, and blindly
+  // reading it imports data the user cannot even see (found the hard way:
+  // a 2025 history sheet inflated achieved revenue to 14.5M).
+  type SheetRef = { name: string; path: string };
+  const sheets: SheetRef[] = [];
+  const sheetRe = /<sheet\s[^>]*>/g;
+  let sm: RegExpExecArray | null;
+  while ((sm = sheetRe.exec(workbook)) !== null) {
+    const tag = sm[0];
+    if (/state="(hidden|veryHidden)"/.test(tag)) continue;
+    const rid = /r:id="([^"]+)"/.exec(tag)?.[1];
+    const name = xmlEntities(/name="([^"]*)"/.exec(tag)?.[1] ?? "");
+    if (!rid) continue;
+    const rel = new RegExp(`<Relationship[^>]*Id="${rid}"[^>]*Target="([^"]+)"`).exec(rels)?.[1];
+    const path = rel ? (rel.startsWith("/") ? rel.slice(1) : `xl/${rel.replace(/^\.\//, "")}`) : "xl/worksheets/sheet1.xml";
+    sheets.push({ name, path });
   }
-  const sheet = await read(sheetPath);
-  if (sheet === null) throw new Error("worksheet missing");
+  if (sheets.length === 0) throw new Error("worksheet missing");
 
   const shared: string[] = [];
   const sharedXml = await read("xl/sharedStrings.xml");
@@ -112,6 +124,24 @@ export async function parseXlsxGrid(data: ArrayBuffer): Promise<string[][]> {
   }
   const styleKinds = buildStyleKinds(await read("xl/styles.xml"));
 
+  // Among visible sheets, pick the one whose first row matches the most
+  // expected headers; ties and no-hint calls fall back to workbook order.
+  const hints = headerHints.map((h) => h.trim().toLowerCase());
+  let best: { grid: string[][]; score: number } | null = null;
+  for (const ref of sheets) {
+    const xml = await read(ref.path);
+    if (xml === null) continue;
+    const grid = parseSheetGrid(xml, shared, styleKinds);
+    const header = (grid[0] ?? []).map((c) => c.trim().toLowerCase());
+    const score = hints.length === 0 ? 0 : hints.filter((h) => header.includes(h)).length;
+    if (best === null || score > best.score) best = { grid, score };
+    if (hints.length === 0) break; // no hints: first visible sheet wins
+  }
+  if (best === null) throw new Error("worksheet missing");
+  return best.grid;
+}
+
+function parseSheetGrid(sheet: string, shared: string[], styleKinds: CellKind[]): string[][] {
   const grid: string[][] = [];
   const rowRe = /<row\b[^>]*>([\s\S]*?)<\/row>/g;
   let rowMatch: RegExpExecArray | null;
