@@ -20,6 +20,7 @@ import {
   inPipeline,
   newId,
   newProposal,
+  nextVersionTitle,
   PIPELINE_STAGES,
   SECTION_KINDS,
   sectionKindLabel,
@@ -111,7 +112,7 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
     addProposal({
       ...structuredClone(current),
       id: newId(),
-      title: `${current.title} ${p.copySuffix}`,
+      title: nextVersionTitle(current.title),
       date: new Date().toISOString().slice(0, 10),
       sentAt: null,
     });

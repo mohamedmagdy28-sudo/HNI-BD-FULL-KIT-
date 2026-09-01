@@ -286,6 +286,18 @@ export function normalizeProposal(p: Proposal): Proposal {
   };
 }
 
+/**
+ * Version-style title for a duplicated proposal (user rule 2026-09-01):
+ * "AI Workshop" -> "AI Workshop V0.2"; "AI Workshop V0.2" -> "AI Workshop V0.3".
+ * The trailing number increments; anything without a V-suffix starts at V0.2
+ * (the original is implicitly V0.1). Case-insensitive; base title untouched.
+ */
+export function nextVersionTitle(title: string): string {
+  const m = /^(.*?)\s*[vV](\d+)\.(\d+)\s*$/.exec(title);
+  if (m) return `${m[1]} V${Number(m[2])}.${Number(m[3]) + 1}`.trim();
+  return `${title.trim()} V0.2`.trim();
+}
+
 /** Membership rule: a proposal is in the pipeline iff its stage is set (design T3.6). */
 export function inPipeline(p: Proposal): boolean {
   return p.pipeline.stage !== undefined;

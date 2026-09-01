@@ -23,7 +23,6 @@ const dict = {
       subtitle: "Build the financial section of a client proposal",
       newProposal: "New proposal",
       untitled: "Untitled proposal",
-      copySuffix: "(copy)",
       firstInstallment: "On signature",
       empty: {
         title: "No proposals yet",
@@ -232,7 +231,6 @@ const dict = {
       subtitle: "إعداد القسم المالي لعرض العميل",
       newProposal: "عرض جديد",
       untitled: "عرض بدون عنوان",
-      copySuffix: "(نسخة)",
       firstInstallment: "عند التوقيع",
       empty: {
         title: "لا توجد عروض بعد",

@@ -123,19 +123,24 @@ test("mark as sent locks the proposal; duplicate creates an editable revision", 
   await expect(page.getByTestId("markup-input")).toBeDisabled();
   await expect(page.getByTestId("mark-sent")).toHaveCount(0);
 
-  // Duplicate: fresh editable draft, "(copy)" in the title, original untouched.
+  // Duplicate: fresh editable draft named V0.2; duplicating that yields V0.3.
+  await page.getByTestId("proposal-title").isVisible(); // original title is "Untitled proposal"-localized
   await page.getByTestId("duplicate").click();
   await expect(page.getByTestId("locked-hint")).toHaveCount(0);
   await expect(page.getByTestId("line-rate-0-0")).toBeEnabled();
   const title = await page.getByTestId("proposal-title").inputValue();
-  expect(title).toContain(lang === "ar" ? "(نسخة)" : "(copy)");
+  expect(title.endsWith("V0.2")).toBe(true);
+  await page.getByTestId("duplicate").click();
+  const title2 = await page.getByTestId("proposal-title").inputValue();
+  expect(title2.endsWith("V0.3")).toBe(true);
+  expect(title2.includes("V0.2")).toBe(false); // version replaced, not stacked
 
   // Edit the copy; the sent original keeps its numbers.
   await page.getByTestId("line-rate-0-0").fill("10000");
   expect(digits(await page.getByTestId("total-cost").textContent())).toBe(30000);
   await page.waitForTimeout(400);
   await page.getByTestId("proposal-switcher").click();
-  await page.getByRole("option").nth(1).click();
+  await page.getByRole("option").nth(2).click(); // original sits after V0.3 and V0.2
   expect(digits(await page.getByTestId("total-cost").textContent())).toBe(27000);
   await expect(page.getByTestId("locked-hint")).toBeVisible();
 });

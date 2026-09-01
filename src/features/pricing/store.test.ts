@@ -329,3 +329,16 @@ describe("debounce", () => {
     expect(fn).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("nextVersionTitle (duplicate naming)", () => {
+  it("starts a plain title at V0.2 and increments existing versions", async () => {
+    const { nextVersionTitle } = await import("./types");
+    expect(nextVersionTitle("AI Workshop")).toBe("AI Workshop V0.2");
+    expect(nextVersionTitle("AI Workshop V0.2")).toBe("AI Workshop V0.3");
+    expect(nextVersionTitle("AI Workshop V0.9")).toBe("AI Workshop V0.10");
+    expect(nextVersionTitle("Track v1.4")).toBe("Track V1.5"); // case-insensitive, normalized
+    expect(nextVersionTitle("  Spaced  ")).toBe("Spaced V0.2");
+    expect(nextVersionTitle("ورشة الذكاء الاصطناعي")).toBe("ورشة الذكاء الاصطناعي V0.2");
+    expect(nextVersionTitle("")).toBe("V0.2");
+  });
+});
