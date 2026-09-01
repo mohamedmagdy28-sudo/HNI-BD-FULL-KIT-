@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { ClipboardCopy, Download, Target, Trash2, Upload } from "lucide-react";
+import { ClipboardCopy, Download, Target, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -573,9 +573,27 @@ export function PipelineTab({
                         <Trash2 className="size-3.5" aria-hidden />
                       </Button>
                     ) : (
-                      <Button variant="ghost" size="sm" className="h-7 px-2 text-[12px] text-hni-magenta hover:text-hni-magenta" onClick={() => onOpenProposal(row.id)}>
-                        {p.docsViewCosting}
-                      </Button>
+                      <span className="inline-flex items-center gap-0.5">
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-[12px] text-hni-magenta hover:text-hni-magenta" onClick={() => onOpenProposal(row.id)}>
+                          {p.docsViewCosting}
+                        </Button>
+                        {/* Removes from the PIPELINE only: clears the stage
+                            (membership rule); the proposal itself is untouched
+                            and returns the moment a stage is set again. */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-hni-grey-mid hover:text-[color:var(--status-danger-fg)]"
+                          aria-label={p.removeFromPipeline}
+                          data-testid={`remove-pipeline-${row.id}`}
+                          onClick={() => {
+                            onUpdatePipeline(row.id, { stage: undefined, decidedAt: null });
+                            toast({ title: p.removedFromPipeline });
+                          }}
+                        >
+                          <X className="size-3.5" aria-hidden />
+                        </Button>
+                      </span>
                     )}
                   </td>
                 </tr>

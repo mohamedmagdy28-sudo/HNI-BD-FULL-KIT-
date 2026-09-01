@@ -385,6 +385,32 @@ test("stage filter narrows the table but never the KPI totals", async ({ page },
   await expect(page.locator("[data-testid^='pipeline-row-']")).toHaveCount(2);
 });
 
+test("remove-from-pipeline clears the stage but keeps the proposal; re-staging restores it", async ({ page }, testInfo) => {
+  const lang = langFromProject(testInfo.project.name);
+  await gotoWithLanguage(page, "/", lang);
+  await createProposalWithProgram(page, "STC", "AI Workshops");
+  await page.getByTestId("pipeline-stage-edit").click();
+  await page.getByRole("option", { name: STAGE_LABELS[lang].Won, exact: true }).click();
+  await page.waitForTimeout(400);
+  await page.getByTestId("pipeline-toggle").click();
+  await expect(page.locator("[data-testid^='pipeline-row-']")).toHaveCount(1);
+  expect(digits(await page.getByTestId("kpi-achieved-rev").locator(".tabular").first().textContent())).toBe(36450);
+
+  // Remove from pipeline: row gone, KPIs to zero, proposal untouched.
+  await page.locator("[data-testid^='remove-pipeline-']").click();
+  await expect(page.locator("[data-testid^='pipeline-row-']")).toHaveCount(0);
+  expect(digits(await page.getByTestId("kpi-achieved-rev").locator(".tabular").first().textContent())).toBe(0);
+  await page.getByTestId("pipeline-toggle").click();
+  await expect(page.getByTestId("proposal-title")).toHaveValue("AI Workshops"); // proposal alive
+
+  // Reversible: set a stage again and the row returns (decidedAt was cleared).
+  await page.getByTestId("pipeline-stage-edit").click();
+  await page.getByRole("option", { name: STAGE_LABELS[lang].Proposal, exact: true }).click();
+  await page.getByTestId("pipeline-toggle").click();
+  await expect(page.locator("[data-testid^='pipeline-row-']")).toHaveCount(1);
+  expect(digits(await page.getByTestId("kpi-open").locator(".tabular").first().textContent())).toBe(36450);
+});
+
 test("deleting a Won proposal requires an explicit confirmation", async ({ page }, testInfo) => {
   const lang = langFromProject(testInfo.project.name);
   await gotoWithLanguage(page, "/", lang);
