@@ -306,6 +306,62 @@ export function toCsv(rows: string[][]): string {
   return [Array.from(SHEET_HEADERS), ...rows].map((r) => r.map(esc).join(",")).join("\r\n");
 }
 
+/**
+ * Typed rows for the native Excel export: money as numbers (Excel renders the
+ * separators), percents as fractions, dates as serials. Mirrors the 19 sheet
+ * columns and the same GP-override/weighting rules as the string exporters.
+ */
+export function pipelineXlsxRows(
+  proposals: Proposal[],
+  externals: ExternalDeal[],
+  calcFor: (p: Proposal) => CalcResult,
+  targets: Targets,
+): import("./xlsx").XlsxCell[][] {
+  const rows: import("./xlsx").XlsxCell[][] = [Array.from(SHEET_HEADERS)];
+  const dateCell = (iso: string): import("./xlsx").XlsxCell => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+    if (!m) return iso || null;
+    const serial = Math.round(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) / 86400000) + 25569;
+    return { t: "date", v: serial };
+  };
+  for (const p of proposals) {
+    if (p.pipeline.stage === undefined) continue;
+    const r = calcFor(p);
+    const pl = p.pipeline;
+    const gpPct = pl.gpPctOverride ?? r.marginPct;
+    const gpAmt = pl.gpPctOverride != null ? Math.round((r.netPrice * pl.gpPctOverride) / 100) : r.marginAmount;
+    rows.push([
+      dateCell(p.date),
+      pl.source ?? null, pl.dealType ?? null, pl.sector ?? null, pl.primaryService ?? null,
+      p.clientName, p.title, pl.stage ?? null,
+      pl.winningProbability != null ? { t: "pct", v: pl.winningProbability / 100 } : null,
+      pl.deliveryStart ? dateCell(pl.deliveryStart) : null,
+      pl.deliveryEnd ? dateCell(pl.deliveryEnd) : null,
+      pl.poNumber ?? null, "SAR",
+      { t: "money", v: r.netPrice },
+      { t: "pct", v: gpPct / 100 },
+      { t: "money", v: gpAmt },
+      targets.revenueTarget ? { t: "pct", v: r.netPrice / targets.revenueTarget } : null,
+      pl.projectStatus ?? null, pl.notes ?? null,
+    ]);
+  }
+  for (const d of externals) {
+    const gpAmt = dealGpAmount(d.dealValue, d.gpPct, d.gpAmount);
+    rows.push([
+      /^\d{4}-/.test(d.date) ? dateCell(d.date) : d.date || null,
+      d.source || null, d.dealType || null, d.sector || null, d.primaryService || null,
+      d.company, d.projectName, d.stage || null,
+      d.winningProbability != null ? { t: "pct", v: d.winningProbability / 100 } : null,
+      d.deliveryStart || null, d.deliveryEnd || null, d.poNumber || null, d.currency,
+      d.dealValue != null ? { t: "money", v: d.dealValue } : null,
+      d.gpPct != null ? { t: "pct", v: d.gpPct / 100 } : null,
+      gpAmt != null ? { t: "money", v: gpAmt } : null,
+      null, d.projectStatus || null, d.notes || null,
+    ]);
+  }
+  return rows;
+}
+
 /** Rows changed since their last copy (new-since-last-copy default, eng review T2). */
 export function isNewSinceLastCopy(p: Proposal): boolean {
   return !p.pipeline.copiedAt;

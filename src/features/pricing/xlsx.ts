@@ -187,3 +187,76 @@ function parseSheetGrid(sheet: string, shared: string[], styleKinds: CellKind[])
   }
   return grid.filter((r) => r.some((cell) => cell.trim() !== ""));
 }
+
+// ---------------------------------------------------------------- writer
+
+/** Typed cell for the pipeline Excel export. */
+export type XlsxCell = string | number | { t: "money" | "pct" | "date"; v: number } | null;
+
+/** Inverse of serialToIso for the 1900 date system. */
+export function isoToSerial(iso: string): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return null;
+  return Math.round(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) / 86400000) + 25569;
+}
+
+function xmlEscape(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function colRef(i: number): string {
+  let n = i + 1;
+  let out = "";
+  while (n > 0) {
+    out = String.fromCharCode(64 + ((n - 1) % 26) + 1) + out;
+    n = Math.floor((n - 1) / 26);
+  }
+  return out;
+}
+
+/**
+ * Minimal single-sheet .xlsx with native cell types: money as numbers with a
+ * #,##0 format (Excel shows 8,000,000 itself), percents as fractions with a
+ * percent format, dates as date-formatted serials, text as inline strings.
+ * Built on the JSZip already in the tree — no spreadsheet library.
+ */
+export async function buildWorkbook(sheetName: string, rows: XlsxCell[][]): Promise<ArrayBuffer> {
+  const { default: JSZipCtor } = await import("jszip");
+  const cellXml = (cell: XlsxCell, r: number, c: number): string => {
+    if (cell === null || cell === "") return "";
+    const ref = `${colRef(c)}${r + 1}`;
+    if (typeof cell === "string") return `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${xmlEscape(cell)}</t></is></c>`;
+    if (typeof cell === "number") return `<c r="${ref}"><v>${cell}</v></c>`;
+    const style = { date: 1, pct: 2, money: 3 }[cell.t];
+    return `<c r="${ref}" s="${style}"><v>${cell.v}</v></c>`;
+  };
+  const sheetData = rows
+    .map((row, r) => `<row r="${r + 1}">${row.map((cell, c) => cellXml(cell, r, c)).join("")}</row>`)
+    .join("");
+  const zip = new JSZipCtor();
+  zip.file(
+    "[Content_Types].xml",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`,
+  );
+  zip.file(
+    "_rels/.rels",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
+  );
+  zip.file(
+    "xl/workbook.xml",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${xmlEscape(sheetName)}" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+  );
+  zip.file(
+    "xl/_rels/workbook.xml.rels",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`,
+  );
+  zip.file(
+    "xl/styles.xml",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="3"><numFmt numFmtId="165" formatCode="dd/mm/yyyy"/><numFmt numFmtId="166" formatCode="0.0%"/><numFmt numFmtId="167" formatCode="#,##0"/></numFmts><fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts><fills count="1"><fill><patternFill patternType="none"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="4"><xf numFmtId="0"/><xf numFmtId="165" applyNumberFormat="1"/><xf numFmtId="166" applyNumberFormat="1"/><xf numFmtId="167" applyNumberFormat="1"/></cellXfs></styleSheet>`,
+  );
+  zip.file(
+    "xl/worksheets/sheet1.xml",
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${sheetData}</sheetData></worksheet>`,
+  );
+  return zip.generateAsync({ type: "arraybuffer" });
+}

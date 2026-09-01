@@ -96,13 +96,13 @@ test("price per day and target margin survive digit-by-digit typing (no controll
   await ppd.click();
   await ppd.clear();
   await ppd.pressSequentially("40000", { delay: 40 });
-  await expect(ppd).toHaveValue("40000"); // not hijacked mid-typing
+  await expect(ppd).toHaveValue("40,000"); // grouped live, not hijacked mid-typing
   await expect(page.getByTestId("markup-input")).toHaveValue("48.1");
   expect(Number((await page.getByTestId("list-price").textContent())?.replace(/[^0-9]/g, ""))).toBe(Math.round(27000 * 1.481));
 
   // Blur re-syncs to the derived value: markup stored at 48.1% -> 27,000 x 1.481.
   await page.getByTestId("client-name").click();
-  await expect(ppd).toHaveValue("39987");
+  await expect(ppd).toHaveValue("39,987");
 
   const margin = page.getByTestId("target-margin-input");
   await margin.click();

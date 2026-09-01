@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/app/MoneyInput";
 import { cn } from "@/lib/utils";
 import { formatCurrency, useI18n } from "@/lib/i18n";
 import { marginPctFromMarkup, markupFromMarginPct, markupFromPricePerDay, type CalcResult } from "./calc";
@@ -38,7 +39,10 @@ export function SummaryPanel({ proposal, result, marginFloorPct, locked, onChang
   // every keystroke still updates markup so all other figures move live;
   // blur re-syncs the display to the derived value.
   const [marginDraft, setMarginDraft] = useState<string | null>(null);
-  const [ppdDraft, setPpdDraft] = useState<string | null>(null);
+  const [ppdDraft, setPpdDraft] = useState<number | null>(null);
+  // Separate editing flag: a cleared field (draft null) must NOT fall back to
+  // the derived value mid-edit, or typed digits append onto the snap-back.
+  const [ppdEditing, setPpdEditing] = useState(false);
 
   const marginTone = result.pricingDisabled
     ? "neutral"
@@ -100,19 +104,16 @@ export function SummaryPanel({ proposal, result, marginFloorPct, locked, onChang
         </label>
         <label>
           <span className="block text-[11px] font-medium uppercase tracking-wide text-hni-grey-dark">{p.pricePerDay}</span>
-          <Input
-            type="number"
-            min={0}
-            value={ppdDraft ?? (result.pricePerDay ?? "")}
+          <MoneyInput
+            value={ppdEditing ? ppdDraft : (result.pricePerDay ?? null)}
             disabled={disabled || result.totalDays === 0}
             data-testid="price-per-day-input"
-            onFocus={() => setPpdDraft(String(result.pricePerDay ?? ""))}
-            onBlur={() => setPpdDraft(null)}
-            onChange={(e) => {
-              setPpdDraft(e.target.value);
+            onFocus={() => { setPpdEditing(true); setPpdDraft(result.pricePerDay ?? null); }}
+            onBlur={() => { setPpdEditing(false); setPpdDraft(null); }}
+            onValue={(n) => {
+              setPpdDraft(n);
               onChange({
-                markupPct:
-                  Math.round(markupFromPricePerDay(numInput(e.target.value), result.totalCost, result.totalDays) * 10) / 10,
+                markupPct: Math.round(markupFromPricePerDay(n ?? 0, result.totalCost, result.totalDays) * 10) / 10,
               });
             }}
             className="tabular mt-1 h-8"

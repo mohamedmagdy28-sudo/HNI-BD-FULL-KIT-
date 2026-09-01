@@ -1,6 +1,7 @@
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/app/MoneyInput";
 import { formatCurrency, useI18n } from "@/lib/i18n";
 import { lineSubtotal, programCost } from "./calc";
 import { newCostLine, newProgram, type CostLine, type Program } from "./types";
@@ -147,13 +148,11 @@ export function CostTable({ programs, locked, seedLabels, groupLabel, onChange }
                     />
                   </td>
                   <td className="px-2 py-1.5">
-                    <Input
-                      type="number"
-                      min={0}
-                      value={line.unitRate}
+                    <MoneyInput
+                      value={line.unitRate || null}
                       disabled={locked}
                       data-testid={`line-rate-${index}-${lineIndex}`}
-                      onChange={(e) => updateLine(program.id, line.id, { unitRate: num(e.target.value) })}
+                      onValue={(n) => updateLine(program.id, line.id, { unitRate: n ?? 0 })}
                       className="tabular h-8 border-transparent bg-transparent px-1 text-end shadow-none focus-visible:border-input"
                     />
                   </td>

@@ -239,6 +239,34 @@ test("XLSX import reads typed cells straight into the dashboard", async ({ page 
   await expect(page.getByTestId("excluded-note")).toHaveCount(0);
 });
 
+test("Download Excel produces a real xlsx with numeric money cells and grouped target input", async ({ page }, testInfo) => {
+  const lang = langFromProject(testInfo.project.name);
+  await gotoWithLanguage(page, "/", lang);
+  await createProposalWithProgram(page, "Aramco", "AC Wave 2");
+  await page.getByTestId("pipeline-stage-edit").click();
+  await page.getByRole("option", { name: STAGE_LABELS[lang].Won, exact: true }).click();
+  await page.getByTestId("pipeline-toggle").click();
+
+  // Targets input shows live thousands separators while storing the raw number.
+  await page.getByTestId("targets-toggle").click();
+  const gpTarget = page.getByTestId("target-gpTarget");
+  await gpTarget.click();
+  await gpTarget.pressSequentially("8000000", { delay: 30 });
+  await expect(gpTarget).toHaveValue("8,000,000");
+
+  const [download] = await Promise.all([page.waitForEvent("download"), page.getByTestId("download-xlsx").click()]);
+  expect(download.suggestedFilename()).toMatch(/^hni-pipeline-\d{4}-\d{2}-\d{2}\.xlsx$/);
+  const path = await download.path();
+  const { readFileSync } = await import("node:fs");
+  const JSZipMod = (await import("jszip")).default;
+  const zip = await JSZipMod.loadAsync(readFileSync(path!));
+  const sheet = await zip.file("xl/worksheets/sheet1.xml")!.async("string");
+  const styles = await zip.file("xl/styles.xml")!.async("string");
+  expect(sheet).toContain("Aramco"); // inline string
+  expect(sheet).toContain("<v>36450</v>"); // numeric money cell, no text commas
+  expect(styles).toContain('formatCode="#,##0"'); // Excel renders 36,450 itself
+});
+
 test("sent-lock: quote fields stay locked while pipeline fields stay editable", async ({ page }, testInfo) => {
   const lang = langFromProject(testInfo.project.name);
   await gotoWithLanguage(page, "/", lang);

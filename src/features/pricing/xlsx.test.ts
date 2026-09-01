@@ -182,3 +182,60 @@ describe("parseXlsxGrid", () => {
     expect(deals[0].flags).toEqual({});
   });
 });
+
+describe("buildWorkbook (Excel export writer)", () => {
+  it("round-trips through our own reader: money numeric, percents, dates, text", async () => {
+    const { buildWorkbook, isoToSerial } = await import("./xlsx");
+    const buf = await buildWorkbook("Pipeline", [
+      ["Company", "Deal Value", "GP%", "Date"],
+      ["Aramco", { t: "money", v: 8000000 }, { t: "pct", v: 0.6 }, { t: "date", v: isoToSerial("2026-08-15")! }],
+    ]);
+    const grid = await parseXlsxGrid(buf);
+    expect(grid).toEqual([
+      ["Company", "Deal Value", "GP%", "Date"],
+      ["Aramco", "8000000", "60%", "2026-08-15"],
+    ]);
+  });
+
+  it("money cells carry the #,##0 format so Excel renders separators", async () => {
+    const { buildWorkbook } = await import("./xlsx");
+    const JSZipMod = (await import("jszip")).default;
+    const buf = await buildWorkbook("S", [[{ t: "money", v: 8000000 }]]);
+    const zip = await JSZipMod.loadAsync(buf);
+    const styles = await zip.file("xl/styles.xml")!.async("string");
+    const sheet = await zip.file("xl/worksheets/sheet1.xml")!.async("string");
+    expect(styles).toContain('formatCode="#,##0"');
+    expect(sheet).toContain('s="3"'); // the money style index
+    expect(sheet).toContain("<v>8000000</v>"); // numeric, not text
+  });
+
+  it("pipelineXlsxRows emits 19 typed columns honoring the GP override", async () => {
+    const { pipelineXlsxRows } = await import("./pipelineCsv");
+    const { calc } = await import("./calc");
+    const { newId, DEFAULT_TARGETS } = await import("./types");
+    const p = {
+      id: newId(), clientName: "NEOM", title: "Deal", date: "2026-08-15", currency: "SAR" as const,
+      projectType: "custom" as const, sectionLabel: "", clientLogo: null, markupPct: 40,
+      discount: { type: "percent" as const, value: 0 }, vatPct: 15,
+      schedule: [{ id: "s1", label: "x", percent: 100 }],
+      programs: [{ id: newId(), name: "P", description: "", days: 1, participants: 0, city: "",
+        costLines: [{ id: newId(), label: "c", qty: 1, unitRate: 100000 }] }],
+      sentAt: null, pipeline: { stage: "Won" as const, gpPctOverride: 40 },
+    };
+    const ext = {
+      id: newId(), importedAt: "2026-08-30T00:00:00.000Z", date: "2026-07-01", source: "", dealType: "",
+      sector: "", primaryService: "", company: "Aramco", projectName: "AC Wave 2", stage: "Won" as const,
+      winningProbability: null, deliveryStart: "", deliveryEnd: "", poNumber: "", currency: "SAR",
+      dealValue: 120000, gpPct: 35.5, gpAmount: null, projectStatus: "", notes: "", flags: {},
+    };
+    const rows = pipelineXlsxRows([p], [ext], calc, DEFAULT_TARGETS);
+    expect(rows[0]).toHaveLength(19);
+    expect(rows).toHaveLength(3);
+    const r = calc(p);
+    expect(rows[1][13]).toEqual({ t: "money", v: r.netPrice });
+    expect(rows[1][14]).toEqual({ t: "pct", v: 0.4 });
+    expect(rows[1][15]).toEqual({ t: "money", v: Math.round(r.netPrice * 0.4) });
+    expect(rows[2][5]).toBe("Aramco");
+    expect(rows[2][13]).toEqual({ t: "money", v: 120000 });
+  });
+});

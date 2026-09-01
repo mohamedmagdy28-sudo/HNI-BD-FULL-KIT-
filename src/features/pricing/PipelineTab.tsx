@@ -10,6 +10,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DetailSheet } from "@/components/app/DetailSheet";
+import { MoneyInput } from "@/components/app/MoneyInput";
 import { KpiStrip, type Kpi } from "@/components/app/KpiStrip";
 import { EmptyState } from "@/components/app/States";
 import { StatusBadge, type Tone } from "@/components/app/StatusBadge";
@@ -20,6 +21,7 @@ import {
   isNewSinceLastCopy,
   parsePipelineCsv,
   parsePipelineRows,
+  pipelineXlsxRows,
   SHEET_HEADERS,
   proposalSheetRow,
   toCsv,
@@ -163,6 +165,19 @@ export function PipelineTab({
     URL.revokeObjectURL(url);
   };
 
+  const downloadXlsx = async () => {
+    // Lazy: keeps the writer + jszip out of the main bundle.
+    const { buildWorkbook } = await import("./xlsx");
+    const buf = await buildWorkbook("Pipeline", pipelineXlsxRows(proposals, externals, calc, settings.targets));
+    const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `hni-pipeline-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const importCsv = async (file: File) => {
     try {
       // Branch on the ZIP magic bytes (PK), not the extension: a renamed
@@ -265,18 +280,23 @@ export function PipelineTab({
   const targetField = (labelKey: string, field: keyof Targets, type: "date" | "number") => (
     <label className="w-40">
       <span className="block text-[11px] font-medium uppercase tracking-wide text-hni-grey-dark">{labelKey}</span>
-      <Input
-        type={type}
-        value={settings.targets[field] ?? ""}
-        data-testid={`target-${field}`}
-        onChange={(e) =>
-          onUpdateTargets({
-            ...settings.targets,
-            [field]: type === "number" ? numOrNull(e.target.value) : e.target.value || null,
-          })
-        }
-        className="tabular mt-1 h-8"
-      />
+      {type === "number" ? (
+        // Grouped money entry: 8,000,000 on screen, 8000000 stored.
+        <MoneyInput
+          value={(settings.targets[field] as number | null) ?? null}
+          data-testid={`target-${field}`}
+          onValue={(n) => onUpdateTargets({ ...settings.targets, [field]: n })}
+          className="tabular mt-1 h-8"
+        />
+      ) : (
+        <Input
+          type="date"
+          value={settings.targets[field] ?? ""}
+          data-testid={`target-${field}`}
+          onChange={(e) => onUpdateTargets({ ...settings.targets, [field]: e.target.value || null })}
+          className="tabular mt-1 h-8"
+        />
+      )}
     </label>
   );
 
@@ -425,6 +445,10 @@ export function PipelineTab({
           <Button variant="outline" size="sm" onClick={downloadCsv}>
             <Download className="size-4" aria-hidden />
             {p.downloadCsv}
+          </Button>
+          <Button variant="outline" size="sm" data-testid="download-xlsx" onClick={() => void downloadXlsx()}>
+            <Download className="size-4" aria-hidden />
+            {p.downloadXlsx}
           </Button>
           <Button variant="outline" size="sm" data-testid="import-csv" onClick={() => importInputRef.current?.click()}>
             <Upload className="size-4" aria-hidden />
