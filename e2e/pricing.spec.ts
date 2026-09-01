@@ -468,3 +468,45 @@ test("corrupted stored proposal degrades to a warning, not a crash", async ({ pa
   await expect(page.getByTestId("proposal-title")).toHaveValue("Survivor");
   await expect(page.getByRole("alert")).toBeVisible();
 });
+
+test("per-phase pricing: override, chips, client doc sum, reset", async ({ page }, testInfo) => {
+  const lang = langFromProject(testInfo.project.name);
+  await gotoWithLanguage(page, "/", lang);
+  await createProposalWithProgram(page); // phase 1: cost 27,000, 1 day, default markup 35%
+
+  await page.getByTestId("add-program").click();
+  await page.getByTestId("line-label-1-0").fill("Assessment center");
+  await page.getByTestId("line-qty-1-0").fill("1");
+  await page.getByTestId("line-rate-1-0").fill("10000"); // phase 2: cost 10,000
+
+  // No overrides: pooled formula on 37,000 at 35%.
+  expect(digits(await page.getByTestId("list-price").textContent())).toBe(Math.round(37000 * 1.35));
+  await expect(page.getByTestId("overrides-note")).toHaveCount(0);
+
+  // Phase 2 takes its own 60% markup; phase 1 keeps inheriting 35%.
+  await page.getByTestId("phase-markup-1").fill("60");
+  const phase1 = Math.round(27000 * 1.35); // 36,450
+  const phase2 = Math.round(10000 * 1.6); // 16,000
+  expect(digits(await page.getByTestId("phase-chip-0").textContent())).toBe(phase1 * 1000 + 259); // "36,450 · Margin 25.9%"
+  expect(digits(await page.getByTestId("phase-chip-1").textContent())).toBe(phase2 * 1000 + 375); // "16,000 · Margin 37.5%"
+  // Consolidated total = sum of the displayed phase prices.
+  expect(digits(await page.getByTestId("list-price").textContent())).toBe(phase1 + phase2);
+  await expect(page.getByTestId("overrides-note")).toBeVisible();
+  // Consolidated margin block still reads from the untouched net formula: 15,450 / 52,450 = 29.5%.
+  await expect(page.getByTestId("margin-pct")).toContainText("29.5");
+
+  // Client document: the two investment rows sum to the printed subtotal.
+  await page.getByTestId("client-name").fill("Client");
+  await page.getByTestId("open-client-view").click();
+  const row0 = digits(await page.getByTestId("doc-invest-0").textContent());
+  const row1 = digits(await page.getByTestId("doc-invest-1").textContent());
+  expect(row0 + row1).toBe(phase1 + phase2);
+  expect(row1).toBe(phase2);
+  await page.getByTestId("client-view-back").click();
+
+  // Reset restores inheritance and the pooled total.
+  await page.getByTestId("phase-reset-1").click();
+  expect(digits(await page.getByTestId("list-price").textContent())).toBe(Math.round(37000 * 1.35));
+  await expect(page.getByTestId("overrides-note")).toHaveCount(0);
+  await expect(page.getByTestId("phase-reset-1")).toHaveCount(0);
+});

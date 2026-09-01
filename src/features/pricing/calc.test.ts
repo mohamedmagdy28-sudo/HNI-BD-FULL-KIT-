@@ -276,3 +276,85 @@ describe("calc: the full chain, rounded-canonical", () => {
     expect(r.listPrice).toBe(r.totalCost); // markup clamped to 0
   });
 });
+
+describe("per-phase pricing (design: per-phase-pricing.md)", () => {
+  const phased = (aMarkup: number | null | undefined, bMarkup: number | null | undefined) =>
+    makeProposal({
+      markupPct: 35,
+      programs: [
+        makeProgram({ days: 2, costLines: [{ id: newId(), label: "A", qty: 1, unitRate: 10000 }], markupPct: aMarkup ?? undefined }),
+        makeProgram({ days: 3, costLines: [{ id: newId(), label: "B", qty: 1, unitRate: 33333 }], markupPct: bMarkup ?? undefined }),
+      ],
+    });
+
+  it("zero overrides: bit-identical to today's single-multiplication chain, unequal costs", () => {
+    const r = calc(phased(undefined, undefined));
+    expect(r.hasOverrides).toBe(false);
+    expect(r.listPrice).toBe(Math.round(43333 * 1.35)); // one multiplication on pooled cost
+    // netShares come from cost-weight allocate, exactly today's path
+    expect(r.programs.reduce((s, x) => s + x.netShare, 0)).toBe(r.netPrice);
+    // listShares in gated mode come from allocate and sum exactly
+    expect(r.programs.reduce((s, x) => s + x.listShare, 0)).toBe(r.listPrice);
+    expect(r.defaultPricePerDay).toBe(r.pricePerDay);
+  });
+
+  it("one override flips totaling to sum-of-phase-prices and changes only that phase's rate", () => {
+    const r = calc(phased(60, undefined));
+    expect(r.hasOverrides).toBe(true);
+    const a = Math.round(10000 * 1.6); // own markup
+    const b = Math.round(33333 * 1.35); // inherits the default
+    expect(r.programs[0].listShare).toBe(a);
+    expect(r.programs[1].listShare).toBe(b);
+    expect(r.listPrice).toBe(a + b); // sum of displayed phase prices
+    expect(r.programs[0].effMarkupPct).toBe(60);
+    expect(r.programs[1].effMarkupPct).toBe(35);
+    expect(r.programs[0].overridden).toBe(true);
+    expect(r.programs[1].overridden).toBe(false);
+  });
+
+  it("summed totaling is actually exercised: sum of rounds differs from round of sum", () => {
+    // Both phases at the same 33.335% via overrides: rounding per phase diverges.
+    const p = makeProposal({
+      markupPct: 35,
+      programs: [
+        makeProgram({ costLines: [{ id: newId(), label: "A", qty: 1, unitRate: 101 }], markupPct: 33.335 }),
+        makeProgram({ costLines: [{ id: newId(), label: "B", qty: 1, unitRate: 101 }], markupPct: 33.335 }),
+      ],
+    });
+    const r = calc(p);
+    const perPhase = Math.round(101 * 1.33335);
+    expect(r.listPrice).toBe(perPhase * 2);
+    expect(r.listPrice).not.toBe(Math.round(202 * 1.33335)); // the gate matters
+  });
+
+  it("discount spreads across list shares; phase margins are net-based and zero-guarded", () => {
+    const r = calc({ ...phased(60, undefined), discount: { type: "percent", value: 10 } });
+    expect(r.programs.reduce((s, x) => s + x.netShare, 0)).toBe(r.netPrice);
+    for (const x of r.programs) {
+      const expected = x.netShare > 0 ? ((x.netShare - x.cost) / x.netShare) * 100 : 0;
+      expect(x.phaseMarginPct).toBeCloseTo(expected, 6);
+    }
+    const zeroed = calc({ ...phased(60, undefined), discount: { type: "amount", value: 99999999 } });
+    expect(zeroed.programs.every((x) => x.phaseMarginPct === 0)).toBe(true); // netPrice 0, no NaN
+  });
+
+  it("listPerDay is the phase's list-based day rate; null without days", () => {
+    const r = calc(phased(60, undefined));
+    expect(r.programs[0].listPerDay).toBe(Math.round(r.programs[0].listShare / 2));
+    const noDays = calc(makeProposal({ programs: [makeProgram({ days: 0, markupPct: 50 })] }));
+    expect(noDays.programs[0].listPerDay).toBeNull();
+  });
+
+  it("defaultPricePerDay covers inheriting phases only; null when all override", () => {
+    const r = calc(phased(60, undefined));
+    expect(r.defaultPricePerDay).toBe(Math.round(r.programs[1].listShare / 3));
+    const all = calc(phased(60, 40));
+    expect(all.defaultPricePerDay).toBeNull();
+    expect(all.hasOverrides).toBe(true);
+  });
+
+  it("consolidated marginPct keeps the untouched net formula", () => {
+    const r = calc({ ...phased(60, undefined), discount: { type: "percent", value: 5 } });
+    expect(r.marginPct).toBeCloseTo(((r.netPrice - r.totalCost) / r.netPrice) * 100, 6);
+  });
+});

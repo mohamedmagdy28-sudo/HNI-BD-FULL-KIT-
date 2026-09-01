@@ -1,9 +1,10 @@
-import { Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/app/MoneyInput";
 import { formatCurrency, useI18n } from "@/lib/i18n";
-import { lineSubtotal, programCost } from "./calc";
+import { lineSubtotal, marginPctFromMarkup, markupFromMarginPct, markupFromPricePerDay, programCost, type CalcResult, type ProgramTotals } from "./calc";
 import { newCostLine, newProgram, type CostLine, type Program } from "./types";
 
 type Props = {
@@ -13,6 +14,10 @@ type Props = {
   seedLabels: readonly string[];
   /** What a group is called in this proposal: "Program" by default, "Phase", "Module", ... */
   groupLabel: string;
+  /** Live calc result feeding each phase's pricing strip. */
+  result: CalcResult | null;
+  /** The proposal-level markup — the default an un-overridden phase inherits. */
+  defaultMarkupPct: number;
   onChange: (programs: Program[]) => void;
 };
 
@@ -22,7 +27,7 @@ function num(value: string): number {
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
-export function CostTable({ programs, locked, seedLabels, groupLabel, onChange }: Props) {
+export function CostTable({ programs, locked, seedLabels, groupLabel, result, defaultMarkupPct, onChange }: Props) {
   const { t, locale } = useI18n();
   const p = t.pricing;
 
@@ -199,6 +204,14 @@ export function CostTable({ programs, locked, seedLabels, groupLabel, onChange }
               </tr>
             </tbody>
           </table>
+          <PhasePricingStrip
+            program={program}
+            index={index}
+            totals={result?.programs.find((x) => x.programId === program.id) ?? null}
+            defaultMarkupPct={defaultMarkupPct}
+            locked={locked}
+            onChange={(patch) => updateProgram(program.id, patch)}
+          />
         </section>
       ))}
 
@@ -212,6 +225,120 @@ export function CostTable({ programs, locked, seedLabels, groupLabel, onChange }
           <Plus className="size-4" aria-hidden />
           {p.addProgram}
         </Button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Per-phase pricing strip (design: docs/designs/per-phase-pricing.md).
+ * Inherit state: inputs empty with the inherited value as placeholder; typing
+ * creates the override (badge + reset appear). Margin and Price/Day are
+ * converters writing back to this phase's markup, with the draft-while-focused
+ * pattern so typing is never hijacked by the derived recompute.
+ */
+function PhasePricingStrip({
+  program,
+  index,
+  totals,
+  defaultMarkupPct,
+  locked,
+  onChange,
+}: {
+  program: Program;
+  index: number;
+  totals: ProgramTotals | null;
+  defaultMarkupPct: number;
+  locked: boolean;
+  onChange: (patch: Partial<Program>) => void;
+}) {
+  const { t, locale } = useI18n();
+  const p = t.pricing;
+  const [draft, setDraft] = useState<{ field: "margin" | "ppd"; value: string | number | null } | null>(null);
+
+  const cost = programCost(program);
+  const overridden = program.markupPct != null && Number.isFinite(program.markupPct);
+  const disabled = locked || cost === 0;
+  const eff = totals?.effMarkupPct ?? (overridden ? (program.markupPct as number) : defaultMarkupPct);
+  const round1 = (n: number) => Math.round(n * 10) / 10;
+  const setOverride = (markup: number) => onChange({ markupPct: Math.max(0, round1(markup)) });
+
+  return (
+    <div className="flex flex-wrap items-end gap-2 border-t border-line-1 bg-surface-1 px-3 py-2">
+      <span className="me-1 pb-1.5 text-[11px] font-medium uppercase tracking-wide text-hni-grey-dark">{p.phasePricing}</span>
+      <label className="w-24">
+        <span className="block text-[11px] text-hni-grey-dark">{p.markup}</span>
+        <Input
+          type="number"
+          min={0}
+          value={overridden ? (program.markupPct as number) : ""}
+          placeholder={String(round1(defaultMarkupPct))}
+          disabled={disabled}
+          data-testid={`phase-markup-${index}`}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === "") onChange({ markupPct: null });
+            else setOverride(Number(v) || 0);
+          }}
+          className="tabular mt-0.5 h-7"
+        />
+      </label>
+      <label className="w-24">
+        <span className="block text-[11px] text-hni-grey-dark">{p.targetMargin}</span>
+        <Input
+          type="number"
+          min={0}
+          max={99}
+          value={draft?.field === "margin" ? (draft.value as string) : overridden ? round1(marginPctFromMarkup(eff)) : ""}
+          placeholder={String(round1(marginPctFromMarkup(defaultMarkupPct)))}
+          disabled={disabled}
+          data-testid={`phase-margin-${index}`}
+          onFocus={() => setDraft({ field: "margin", value: overridden ? String(round1(marginPctFromMarkup(eff))) : "" })}
+          onBlur={() => setDraft(null)}
+          onChange={(e) => {
+            setDraft({ field: "margin", value: e.target.value });
+            if (e.target.value === "") onChange({ markupPct: null });
+            else setOverride(markupFromMarginPct(Number(e.target.value) || 0));
+          }}
+          className="tabular mt-0.5 h-7"
+        />
+      </label>
+      <label className="w-28">
+        <span className="block text-[11px] text-hni-grey-dark">{p.pricePerDay}</span>
+        <MoneyInput
+          value={draft?.field === "ppd" ? (draft.value as number | null) : overridden ? (totals?.listPerDay ?? null) : null}
+          placeholder={totals?.listPerDay != null ? totals.listPerDay.toLocaleString("en-US") : undefined}
+          disabled={disabled || !program.days}
+          data-testid={`phase-ppd-${index}`}
+          onFocus={() => setDraft({ field: "ppd", value: overridden ? (totals?.listPerDay ?? null) : null })}
+          onBlur={() => setDraft(null)}
+          onValue={(n) => {
+            setDraft({ field: "ppd", value: n });
+            if (n == null) onChange({ markupPct: null });
+            else setOverride(markupFromPricePerDay(n, cost, Math.max(0, program.days || 0)));
+          }}
+          className="tabular mt-0.5 h-7"
+        />
+      </label>
+      {totals && cost > 0 && (
+        <bdi className="tabular pb-1.5 text-[12.5px] font-medium text-hni-black" data-testid={`phase-chip-${index}`}>
+          {formatCurrency(totals.listShare, locale)} · {p.margin} {round1(totals.phaseMarginPct)}%
+        </bdi>
+      )}
+      {overridden && !locked && (
+        <span className="flex items-center gap-1 pb-1">
+          <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[11px] text-hni-grey-dark">{p.phaseOverride}</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-hni-grey-mid hover:text-[color:var(--status-danger-fg)]"
+            aria-label={p.phaseReset}
+            data-testid={`phase-reset-${index}`}
+            onClick={() => onChange({ markupPct: null })}
+          >
+            <X className="size-3" aria-hidden />
+          </Button>
+        </span>
       )}
     </div>
   );

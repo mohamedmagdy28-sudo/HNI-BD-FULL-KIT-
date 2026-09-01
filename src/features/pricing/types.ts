@@ -36,6 +36,12 @@ export type Program = {
   participants: number;
   city: string;
   costLines: CostLine[];
+  /**
+   * Per-phase markup override (design: docs/designs/per-phase-pricing.md).
+   * null/absent = inherit the proposal-level markup. Setting ANY phase's
+   * override flips the whole proposal to per-phase totaling (gated in calc).
+   */
+  markupPct?: number | null;
 };
 
 /** The pipeline sheet's exact stage strings; stored and exported verbatim so the sheet's dropdown validation keeps working. UI shows localized labels. */
@@ -282,7 +288,12 @@ export function normalizeProposal(p: Proposal): Proposal {
     sectionLabel: LEGACY_SECTION_LABELS[rawLabel] ?? "",
     clientLogo: asImageDataUrl(p.clientLogo),
     pipeline: { ...rawPipeline, stage },
-    programs: p.programs.map((pr) => ({ ...pr, description: typeof pr.description === "string" ? pr.description : "" })),
+    programs: p.programs.map((pr) => ({
+      ...pr,
+      description: typeof pr.description === "string" ? pr.description : "",
+      // Phase override: finite ≥0 kept (clamped), anything else = inherit.
+      markupPct: typeof pr.markupPct === "number" && Number.isFinite(pr.markupPct) ? Math.max(0, pr.markupPct) : null,
+    })),
   };
 }
 

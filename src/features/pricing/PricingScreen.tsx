@@ -589,6 +589,8 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
             <CostTable
               programs={current.programs}
               locked={locked}
+              result={result}
+              defaultMarkupPct={current.markupPct}
               seedLabels={current.projectType === "workshop" ? p.workshopLines : []}
               groupLabel={sectionKindLabel(current.sectionLabel, p)}
               onChange={(programs) => updateCurrent({ programs })}

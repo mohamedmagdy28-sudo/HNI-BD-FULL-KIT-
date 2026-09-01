@@ -105,15 +105,23 @@ export function SummaryPanel({ proposal, result, marginFloorPct, locked, onChang
         <label>
           <span className="block text-[11px] font-medium uppercase tracking-wide text-hni-grey-dark">{p.pricePerDay}</span>
           <MoneyInput
-            value={ppdEditing ? ppdDraft : (result.pricePerDay ?? null)}
-            disabled={disabled || result.totalDays === 0}
+            value={ppdEditing ? ppdDraft : (result.defaultPricePerDay ?? null)}
+            disabled={disabled || result.defaultPricePerDay == null}
             data-testid="price-per-day-input"
-            onFocus={() => { setPpdEditing(true); setPpdDraft(result.pricePerDay ?? null); }}
+            onFocus={() => { setPpdEditing(true); setPpdDraft(result.defaultPricePerDay ?? null); }}
             onBlur={() => { setPpdEditing(false); setPpdDraft(null); }}
             onValue={(n) => {
               setPpdDraft(n);
+              // Once phases override, this knob prices the INHERITING phases
+              // only (their cost/days), so the typed rate round-trips for the
+              // phases it actually controls (per-phase-pricing design).
+              const inh = proposal.programs.filter((pr) => pr.markupPct == null || !Number.isFinite(pr.markupPct));
+              const inhCost = result.hasOverrides
+                ? inh.reduce((s, pr) => s + pr.costLines.reduce((a, l) => a + Math.round(Math.max(0, l.qty) * Math.max(0, l.unitRate) || 0), 0), 0)
+                : result.totalCost;
+              const inhDays = result.hasOverrides ? inh.reduce((s, pr) => s + Math.max(0, pr.days || 0), 0) : result.totalDays;
               onChange({
-                markupPct: Math.round(markupFromPricePerDay(n ?? 0, result.totalCost, result.totalDays) * 10) / 10,
+                markupPct: Math.round(markupFromPricePerDay(n ?? 0, inhCost, inhDays) * 10) / 10,
               });
             }}
             className="tabular mt-1 h-8"
@@ -121,6 +129,15 @@ export function SummaryPanel({ proposal, result, marginFloorPct, locked, onChang
         </label>
       </div>
       {result.pricingDisabled && <p className="mb-2 text-[12px] text-hni-grey-mid">{p.pricingDisabledHint}</p>}
+      {result.hasOverrides && (
+        <p className="mb-2 text-[12px] text-hni-grey-dark" data-testid="overrides-note">
+          {result.defaultPricePerDay == null && !result.pricingDisabled
+            ? p.allPhasesOverride
+            : p.appliesTo
+                .replace("{n}", String(proposal.programs.filter((pr) => pr.markupPct == null || !Number.isFinite(pr.markupPct)).length))
+                .replace("{m}", String(proposal.programs.length))}
+        </p>
+      )}
 
       {row(p.listPrice, result.listPrice, "list-price")}
 

@@ -363,7 +363,7 @@ export function ClientView({ proposal, result, settings, onSettingsChange, onBac
                         <td className="tabular py-[0.07in] text-end" data-testid={`doc-unit-${i}`}>
                           {totals?.perDay != null ? <bdi>{money(totals.perDay)}</bdi> : "—"}
                         </td>
-                        <td className="tabular py-[0.07in] text-end">
+                        <td className="tabular py-[0.07in] text-end" data-testid={`doc-invest-${i}`}>
                           <bdi>{money(totals?.netShare ?? 0)}</bdi>
                         </td>
                       </tr>

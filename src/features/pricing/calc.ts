@@ -14,12 +14,26 @@ import type { Program, Proposal } from "./types";
 export type ProgramTotals = {
   programId: string;
   cost: number;
-  /** Program's share of the net price (excl. VAT), allocated by cost share. */
+  /** Program's share of the net price (excl. VAT). */
   netShare: number;
   /** Net share divided by participants; null when participants is 0. */
   perParticipant: number | null;
   /** Net share divided by days (the row's unit price per day); null when days is 0. */
   perDay: number | null;
+  /**
+   * The phase's pre-discount price. Override mode: cost x (1 + own markup).
+   * Gated (zero-override) mode: allocate(listPrice, costs) so the chips always
+   * sum exactly to the displayed list price in both modes.
+   */
+  listShare: number;
+  /** The markup this phase actually used (own override or the proposal default). */
+  effMarkupPct: number;
+  /** Net-based phase margin %, matching the margin block; 0 when netShare is 0. */
+  phaseMarginPct: number;
+  /** listShare / days — the phase pricing strip's Price/Day surface; null when days is 0. */
+  listPerDay: number | null;
+  /** True when this phase carries its own markup override. */
+  overridden: boolean;
 };
 
 export type ScheduleTotals = {
@@ -43,6 +57,14 @@ export type CalcResult = {
   totalDays: number;
   /** Derived list price per training day; null when there are no days or no cost. */
   pricePerDay: number | null;
+  /**
+   * Day rate over INHERITING phases only (what the summary's Price/Day knob
+   * controls once overrides exist); equals the consolidated rate when nothing
+   * overrides; null when no inheriting phase has days.
+   */
+  defaultPricePerDay: number | null;
+  /** True when at least one phase carries its own markup (per-phase totaling active). */
+  hasOverrides: boolean;
   programs: ProgramTotals[];
   installments: ScheduleTotals[];
   /** Integer percents, each >= 0, summing to exactly 100, at least one item. */
@@ -127,9 +149,35 @@ export function calc(proposal: Proposal): CalcResult {
   const pricingDisabled = totalCost === 0;
 
   const markupPct = Number.isFinite(proposal.markupPct) ? Math.max(proposal.markupPct, 0) : 0;
-  const listPrice = pricingDisabled ? 0 : round(totalCost * (1 + markupPct / 100));
+
+  // Per-phase pricing (design: docs/designs/per-phase-pricing.md). Everything
+  // is GATED on an actual override existing: with zero overrides the chain
+  // below is bit-for-bit today's math, so no stored (or SENT) proposal ever
+  // drifts. Only opting a phase in switches totaling to sum-of-phase-prices.
+  const effMarkups = proposal.programs.map((p) =>
+    p.markupPct != null && Number.isFinite(p.markupPct) ? Math.max(p.markupPct, 0) : markupPct,
+  );
+  const hasOverrides = proposal.programs.some((p) => p.markupPct != null && Number.isFinite(p.markupPct));
+  const overrideShares = costs.map((c, i) => round(c * (1 + effMarkups[i] / 100)));
+
+  const listPrice = pricingDisabled
+    ? 0
+    : hasOverrides
+      ? overrideShares.reduce((s, v) => s + v, 0)
+      : round(totalCost * (1 + markupPct / 100));
   const days = totalDays(proposal.programs);
   const pricePerDay = !pricingDisabled && days > 0 ? round(listPrice / days) : null;
+
+  // The summary knob's surface once overrides exist: rate over inheriting
+  // phases only, so a typed rate round-trips for the phases it controls.
+  const inheritingIdx = proposal.programs
+    .map((p, i) => (p.markupPct == null || !Number.isFinite(p.markupPct) ? i : -1))
+    .filter((i) => i >= 0);
+  const inheritingDays = inheritingIdx.reduce((s, i) => s + Math.max(0, proposal.programs[i].days || 0), 0);
+  const inheritingList = hasOverrides
+    ? inheritingIdx.reduce((s, i) => s + overrideShares[i], 0)
+    : listPrice;
+  const defaultPricePerDay = !pricingDisabled && inheritingDays > 0 ? round(inheritingList / inheritingDays) : null;
 
   let discountAmount = 0;
   let discountClamped = false;
@@ -152,7 +200,12 @@ export function calc(proposal: Proposal): CalcResult {
   const vatAmount = round((netPrice * vatPct) / 100);
   const totalIncVat = netPrice + vatAmount;
 
-  const netShares = allocate(netPrice, costs);
+  // Gated weights: zero-override mode must reproduce today's allocation
+  // bit-for-bit (per-phase rounding makes overrideShares NOT exactly
+  // cost-proportional, so using them unconditionally could shift a sent
+  // proposal's shares by a riyal).
+  const netShares = allocate(netPrice, hasOverrides ? overrideShares : costs);
+  const listShares = hasOverrides ? overrideShares : allocate(listPrice, costs);
   const programs: ProgramTotals[] = proposal.programs.map((p, i) => ({
     programId: p.id,
     cost: costs[i],
@@ -160,6 +213,11 @@ export function calc(proposal: Proposal): CalcResult {
     perParticipant:
       p.participants > 0 && costs[i] > 0 ? round(netShares[i] / p.participants) : null,
     perDay: p.days > 0 && costs[i] > 0 ? round(netShares[i] / p.days) : null,
+    listShare: listShares[i],
+    effMarkupPct: effMarkups[i],
+    phaseMarginPct: netShares[i] > 0 ? ((netShares[i] - costs[i]) / netShares[i]) * 100 : 0,
+    listPerDay: p.days > 0 && costs[i] > 0 ? round(listShares[i] / p.days) : null,
+    overridden: p.markupPct != null && Number.isFinite(p.markupPct),
   }));
 
   const scheduleValid = isScheduleValid(proposal.schedule);
@@ -181,6 +239,8 @@ export function calc(proposal: Proposal): CalcResult {
     totalIncVat,
     totalDays: days,
     pricePerDay,
+    defaultPricePerDay,
+    hasOverrides,
     programs,
     installments,
     scheduleValid,
