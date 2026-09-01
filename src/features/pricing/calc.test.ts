@@ -358,3 +358,24 @@ describe("per-phase pricing (design: per-phase-pricing.md)", () => {
     expect(r.marginPct).toBeCloseTo(((r.netPrice - r.totalCost) / r.netPrice) * 100, 6);
   });
 });
+
+describe("phase price/day manual entry (full-precision override)", () => {
+  it("a typed day rate reproduces exactly when the implied markup is stored unrounded", () => {
+    // BD types 40,000/day on a 3-day phase costing 27,000: the strip stores
+    // markupFromPricePerDay at full precision, so listShare = 120,000 exactly.
+    const markup = markupFromPricePerDay(40000, 27000, 3);
+    const p = makeProposal({
+      markupPct: 35,
+      programs: [
+        makeProgram({ days: 3, costLines: [{ id: newId(), label: "A", qty: 3, unitRate: 9000 }], markupPct: markup }),
+        makeProgram({ days: 1, costLines: [{ id: newId(), label: "B", qty: 1, unitRate: 10000 }] }),
+      ],
+    });
+    const r = calc(p);
+    expect(r.programs[0].listShare).toBe(120000);
+    expect(r.programs[0].listPerDay).toBe(40000);
+    // Margin follows automatically from the typed rate: (120,000 - 27,000) / 120,000.
+    expect(r.programs[0].phaseMarginPct).toBeCloseTo(77.5, 6);
+    expect(r.listPrice).toBe(120000 + Math.round(10000 * 1.35));
+  });
+});

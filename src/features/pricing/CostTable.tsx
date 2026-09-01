@@ -254,7 +254,7 @@ function PhasePricingStrip({
 }) {
   const { t, locale } = useI18n();
   const p = t.pricing;
-  const [draft, setDraft] = useState<{ field: "margin" | "ppd"; value: string | number | null } | null>(null);
+  const [draft, setDraft] = useState<{ field: "markup" | "margin" | "ppd"; value: string | number | null } | null>(null);
 
   const cost = programCost(program);
   const overridden = program.markupPct != null && Number.isFinite(program.markupPct);
@@ -262,6 +262,10 @@ function PhasePricingStrip({
   const eff = totals?.effMarkupPct ?? (overridden ? (program.markupPct as number) : defaultMarkupPct);
   const round1 = (n: number) => Math.round(n * 10) / 10;
   const setOverride = (markup: number) => onChange({ markupPct: Math.max(0, round1(markup)) });
+  // Price/Day is the number BD quotes: store its implied markup at FULL
+  // precision so the typed day rate reproduces exactly (round1 would drift
+  // 40,000 to 39,987). The markup field displays it rounded to one decimal.
+  const setOverridePrecise = (markup: number) => onChange({ markupPct: Math.max(0, markup) });
 
   return (
     <div className="flex flex-wrap items-end gap-2 border-t border-line-1 bg-surface-1 px-3 py-2">
@@ -271,12 +275,15 @@ function PhasePricingStrip({
         <Input
           type="number"
           min={0}
-          value={overridden ? (program.markupPct as number) : ""}
+          value={draft?.field === "markup" ? (draft.value as string) : overridden ? round1(program.markupPct as number) : ""}
           placeholder={String(round1(defaultMarkupPct))}
           disabled={disabled}
           data-testid={`phase-markup-${index}`}
+          onFocus={() => setDraft({ field: "markup", value: overridden ? String(round1(program.markupPct as number)) : "" })}
+          onBlur={() => setDraft(null)}
           onChange={(e) => {
             const v = e.target.value;
+            setDraft({ field: "markup", value: v });
             if (v === "") onChange({ markupPct: null });
             else setOverride(Number(v) || 0);
           }}
@@ -315,7 +322,7 @@ function PhasePricingStrip({
           onValue={(n) => {
             setDraft({ field: "ppd", value: n });
             if (n == null) onChange({ markupPct: null });
-            else setOverride(markupFromPricePerDay(n, cost, Math.max(0, program.days || 0)));
+            else setOverridePrecise(markupFromPricePerDay(n, cost, Math.max(0, program.days || 0)));
           }}
           className="tabular mt-0.5 h-7"
         />

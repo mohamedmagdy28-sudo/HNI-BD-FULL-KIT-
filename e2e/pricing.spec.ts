@@ -509,4 +509,15 @@ test("per-phase pricing: override, chips, client doc sum, reset", async ({ page 
   expect(digits(await page.getByTestId("list-price").textContent())).toBe(Math.round(37000 * 1.35));
   await expect(page.getByTestId("overrides-note")).toHaveCount(0);
   await expect(page.getByTestId("phase-reset-1")).toHaveCount(0);
+
+  // Manual Price/Day per phase: the typed rate sticks exactly (full-precision
+  // implied markup) and the phase margin recomputes from it automatically.
+  await page.getByTestId("phase-ppd-0").fill("40000"); // 1 day, cost 27,000
+  expect(digits(await page.getByTestId("phase-chip-0").textContent())).toBe(40000 * 1000 + 325); // "40,000 · Margin 32.5%"
+  await page.getByTestId("phase-ppd-0").blur();
+  await expect(page.getByTestId("phase-ppd-0")).toHaveValue("40,000"); // no drift to 39,987
+  await expect(page.getByTestId("phase-margin-0")).toHaveValue("32.5");
+  expect(digits(await page.getByTestId("list-price").textContent())).toBe(40000 + Math.round(10000 * 1.35));
+  await page.getByTestId("phase-reset-0").click();
+  expect(digits(await page.getByTestId("list-price").textContent())).toBe(Math.round(37000 * 1.35));
 });
