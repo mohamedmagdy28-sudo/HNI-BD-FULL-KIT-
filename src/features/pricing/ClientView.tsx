@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
+import { asset } from "@/lib/assets";
 import { ArrowLeft, FileDown, ImagePlus, Printer, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -59,7 +60,7 @@ function DocPage({ children, className = "" }: { children: ReactNode; className?
 function PageChrome() {
   return (
     <>
-      <img src="/brand/logo-primary.svg" alt="" className="absolute bottom-[0.35in] left-[0.36in] h-[0.55in] w-auto" aria-hidden />
+      <img src={asset("brand/logo-primary.svg")} alt="" className="absolute bottom-[0.35in] left-[0.36in] h-[0.55in] w-auto" aria-hidden />
       <QuarterRing className="absolute bottom-0 right-0 h-[1.36in] w-[1.36in]" />
     </>
   );
@@ -294,10 +295,10 @@ export function ClientView({ proposal, result, settings, onSettingsChange, onBac
         <div id="client-document" data-testid="client-document" className="doc-pages mx-auto w-fit space-y-4">
           {/* Page 1 — Cover: full-bleed skyline art, title block on the light sky area. */}
           <DocPage>
-            <img src="/brand/proposal-cover.jpg" alt="" className="absolute inset-0 h-full w-full object-cover" aria-hidden />
+            <img src={asset("brand/proposal-cover.jpg")} alt="" className="absolute inset-0 h-full w-full object-cover" aria-hidden />
             {/* Co-brand lockup: HNI mark, thin divider, client logo when provided. */}
             <div className="absolute left-[0.95in] top-[1.25in] flex items-center gap-[0.22in]">
-              <img src="/brand/logo-primary.svg" alt={p.docFooter} className="h-[0.75in] w-auto" />
+              <img src={asset("brand/logo-primary.svg")} alt={p.docFooter} className="h-[0.75in] w-auto" />
               {proposal.clientLogo && (
                 <>
                   <div className="h-[0.62in] w-px bg-[#999]" aria-hidden />
@@ -460,7 +461,7 @@ export function ClientView({ proposal, result, settings, onSettingsChange, onBac
           {/* Page 6 — Back cover. */}
           <DocPage>
             <Ring className="absolute -left-[0.4in] -top-[0.4in] h-[3.2in] w-[3.2in]" />
-            <img src="/brand/logo-primary.svg" alt="" className="absolute right-[0.6in] top-[0.85in] h-[0.8in] w-auto" aria-hidden />
+            <img src={asset("brand/logo-primary.svg")} alt="" className="absolute right-[0.6in] top-[0.85in] h-[0.8in] w-auto" aria-hidden />
             <p className="absolute left-1/2 top-[2.9in] -translate-x-1/2 text-[52pt] font-bold tracking-wide text-hni-black">
               {p.docThankYou}
             </p>

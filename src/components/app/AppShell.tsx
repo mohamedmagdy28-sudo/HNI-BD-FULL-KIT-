@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { asset } from "@/lib/assets";
 import { LayoutDashboard, FolderKanban, Building2, BookOpen, Users, BarChart3, Settings, Menu, Languages } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -68,7 +69,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <aside className="hidden md:flex md:flex-col border-e border-line-1 bg-surface-0">
         {/* Brand rule: clear space around the logo of at least 1x its height (logo is 20px, padding 20px). */}
         <div className="flex h-14 items-center px-5">
-          <img src="/brand/logo-primary.svg" alt={t.app} className="h-5 w-auto" />
+          <img src={asset("brand/logo-primary.svg")} alt={t.app} className="h-5 w-auto" />
         </div>
         {nav}
       </aside>
@@ -86,7 +87,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             <Menu className="size-5" aria-hidden />
           </Button>
-          <img src="/brand/logo-primary.svg" alt={t.app} className="md:hidden ms-2 h-5 w-auto" />
+          <img src={asset("brand/logo-primary.svg")} alt={t.app} className="md:hidden ms-2 h-5 w-auto" />
           <div className="ms-auto">
             <Button variant="outline" size="sm" className="h-10 md:h-8" onClick={() => setLang(lang === "en" ? "ar" : "en")} aria-label={t.lang.label}>
               <Languages className="size-4" aria-hidden />
