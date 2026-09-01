@@ -85,6 +85,33 @@ test("markup, target margin, and price per day stay in sync", async ({ page }, t
   await expect(page.getByTestId("price-per-day-input")).toBeDisabled();
 });
 
+test("price per day and target margin survive digit-by-digit typing (no controlled-input hijack)", async ({ page }, testInfo) => {
+  const lang = langFromProject(testInfo.project.name);
+  await gotoWithLanguage(page, "/", lang);
+  await createProposalWithProgram(page); // cost 27,000, 1 day
+
+  // Type like a human: keystroke by keystroke. The field must keep the draft
+  // while every other figure updates live from each keystroke.
+  const ppd = page.getByTestId("price-per-day-input");
+  await ppd.click();
+  await ppd.clear();
+  await ppd.pressSequentially("40000", { delay: 40 });
+  await expect(ppd).toHaveValue("40000"); // not hijacked mid-typing
+  await expect(page.getByTestId("markup-input")).toHaveValue("48.1");
+  expect(Number((await page.getByTestId("list-price").textContent())?.replace(/[^0-9]/g, ""))).toBe(Math.round(27000 * 1.481));
+
+  // Blur re-syncs to the derived value: markup stored at 48.1% -> 27,000 x 1.481.
+  await page.getByTestId("client-name").click();
+  await expect(ppd).toHaveValue("39987");
+
+  const margin = page.getByTestId("target-margin-input");
+  await margin.click();
+  await margin.clear();
+  await margin.pressSequentially("30", { delay: 40 });
+  await expect(margin).toHaveValue("30");
+  await expect(page.getByTestId("markup-input")).toHaveValue("42.9");
+});
+
 test("mark as sent locks the proposal; duplicate creates an editable revision", async ({ page }, testInfo) => {
   const lang = langFromProject(testInfo.project.name);
   await gotoWithLanguage(page, "/", lang);

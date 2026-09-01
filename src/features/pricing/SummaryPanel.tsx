@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +30,15 @@ export function SummaryPanel({ proposal, result, marginFloorPct, locked, onChang
   const { t, locale } = useI18n();
   const p = t.pricing;
   const disabled = locked || result.pricingDisabled;
+
+  // Target margin and Price/Day are DERIVED from the stored markup. Binding
+  // their inputs directly to the derived value hijacks manual typing (each
+  // keystroke's recompute overwrites the field mid-entry — the "2" of 20000
+  // snaps to cost/days). While focused, the field shows the user's draft;
+  // every keystroke still updates markup so all other figures move live;
+  // blur re-syncs the display to the derived value.
+  const [marginDraft, setMarginDraft] = useState<string | null>(null);
+  const [ppdDraft, setPpdDraft] = useState<string | null>(null);
 
   const marginTone = result.pricingDisabled
     ? "neutral"
@@ -76,10 +86,15 @@ export function SummaryPanel({ proposal, result, marginFloorPct, locked, onChang
             type="number"
             min={0}
             max={99}
-            value={Math.round(marginPctFromMarkup(proposal.markupPct) * 10) / 10}
+            value={marginDraft ?? Math.round(marginPctFromMarkup(proposal.markupPct) * 10) / 10}
             disabled={disabled}
             data-testid="target-margin-input"
-            onChange={(e) => onChange({ markupPct: Math.round(markupFromMarginPct(numInput(e.target.value)) * 10) / 10 })}
+            onFocus={() => setMarginDraft(String(Math.round(marginPctFromMarkup(proposal.markupPct) * 10) / 10))}
+            onBlur={() => setMarginDraft(null)}
+            onChange={(e) => {
+              setMarginDraft(e.target.value);
+              onChange({ markupPct: Math.round(markupFromMarginPct(numInput(e.target.value)) * 10) / 10 });
+            }}
             className="tabular mt-1 h-8"
           />
         </label>
@@ -88,15 +103,18 @@ export function SummaryPanel({ proposal, result, marginFloorPct, locked, onChang
           <Input
             type="number"
             min={0}
-            value={result.pricePerDay ?? ""}
+            value={ppdDraft ?? (result.pricePerDay ?? "")}
             disabled={disabled || result.totalDays === 0}
             data-testid="price-per-day-input"
-            onChange={(e) =>
+            onFocus={() => setPpdDraft(String(result.pricePerDay ?? ""))}
+            onBlur={() => setPpdDraft(null)}
+            onChange={(e) => {
+              setPpdDraft(e.target.value);
               onChange({
                 markupPct:
                   Math.round(markupFromPricePerDay(numInput(e.target.value), result.totalCost, result.totalDays) * 10) / 10,
-              })
-            }
+              });
+            }}
             className="tabular mt-1 h-8"
           />
         </label>
