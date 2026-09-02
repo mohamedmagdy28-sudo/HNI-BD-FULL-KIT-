@@ -214,6 +214,16 @@ function colRef(i: number): string {
   return out;
 }
 
+/**
+ * Named row treatments for the styled (costing) sheet, matching the user's
+ * hand-formatted reference file (Costing - MAADEN PHOSPHATE …, 2026-09-02):
+ *   title   — bold 14, no fill (also the PAYMENT SCHEDULE label row)
+ *   header  — bold 14 WHITE on black band, centered, row height 29
+ *   phase   — bold 14 on grey band (A6A6A6), row height 29
+ *   section — bold 14 on orange band (FFC000), centered, row height 25 (SUMMARY)
+ */
+export type RowKind = "title" | "header" | "phase" | "section";
+
 /** Optional presentation extras for the costing sheet; omitted = today's exact output. */
 export type WorkbookOptions = {
   /** Row indices (0-based) rendered bold. TEXT cells only: the bold xf carries numFmtId 0, so a typed cell in a bold row would lose its number format. */
@@ -222,6 +232,13 @@ export type WorkbookOptions = {
   cols?: number[];
   /** Freeze this many top rows. */
   freezeRows?: number;
+  /**
+   * Styled mode: every cell renders at Calibri 14 and the listed rows get
+   * their named band treatment. Kind rows may contain only text cells
+   * (their xfs carry numFmtId 0); "" cells in a band row still paint the fill
+   * so the band spans the full table width.
+   */
+  rowKinds?: Record<number, RowKind>;
 };
 
 /**
@@ -233,19 +250,37 @@ export type WorkbookOptions = {
 export async function buildWorkbook(sheetName: string, rows: XlsxCell[][], options: WorkbookOptions = {}): Promise<ArrayBuffer> {
   const { default: JSZipCtor } = await import("jszip");
   const boldSet = new Set(options.boldRows ?? []);
+  const kinds = options.rowKinds ?? null;
+  const styled = kinds !== null;
+  // Styled-mode xf indices (see styles.xml below): plain-14 5, money-14 6,
+  // pct-14 7, date-14 8, title 9, header 10, phase-lead 11, phase-fill 12,
+  // section-lead 13, section-fill 14.
+  const KIND_LEAD: Record<RowKind, number> = { title: 9, header: 10, phase: 11, section: 13 };
+  const KIND_FILL: Record<RowKind, number> = { title: 9, header: 10, phase: 12, section: 14 };
+  const KIND_HEIGHT: Record<RowKind, number | null> = { title: null, header: 29, phase: 29, section: 25 };
   const cellXml = (cell: XlsxCell, r: number, c: number): string => {
-    if (cell === null || cell === "") return "";
+    const kind = kinds?.[r];
     const ref = `${colRef(c)}${r + 1}`;
+    if (cell === null || cell === "") {
+      // Band rows paint their fill across empty cells so the band spans the table.
+      if (kind && kind !== "title") return `<c r="${ref}" s="${KIND_FILL[kind]}"/>`;
+      return "";
+    }
     if (typeof cell === "string") {
-      const style = boldSet.has(r) ? ` s="4"` : "";
+      const style = kind ? ` s="${c === 0 ? KIND_LEAD[kind] : KIND_FILL[kind]}"` : styled ? ` s="5"` : boldSet.has(r) ? ` s="4"` : "";
       return `<c r="${ref}" t="inlineStr"${style}><is><t xml:space="preserve">${xmlEscape(cell)}</t></is></c>`;
     }
-    if (typeof cell === "number") return `<c r="${ref}"><v>${cell}</v></c>`;
-    const style = { date: 1, pct: 2, money: 3 }[cell.t];
+    if (typeof cell === "number") return `<c r="${ref}"${styled ? ' s="5"' : ""}><v>${cell}</v></c>`;
+    const style = styled ? { date: 8, pct: 7, money: 6 }[cell.t] : { date: 1, pct: 2, money: 3 }[cell.t];
     return `<c r="${ref}" s="${style}"><v>${cell.v}</v></c>`;
   };
+  const rowAttrs = (r: number): string => {
+    const kind = kinds?.[r];
+    const ht = kind ? KIND_HEIGHT[kind] : null;
+    return ht != null ? ` ht="${ht}" customHeight="1"` : "";
+  };
   const sheetData = rows
-    .map((row, r) => `<row r="${r + 1}">${row.map((cell, c) => cellXml(cell, r, c)).join("")}</row>`)
+    .map((row, r) => `<row r="${r + 1}"${rowAttrs(r)}>${row.map((cell, c) => cellXml(cell, r, c)).join("")}</row>`)
     .join("");
   const zip = new JSZipCtor();
   zip.file(
@@ -264,19 +299,58 @@ export async function buildWorkbook(sheetName: string, rows: XlsxCell[][], optio
     "xl/_rels/workbook.xml.rels",
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`,
   );
-  // The bold xf (s=4) is APPENDED after the existing indices so the typed
-  // styles 1/2/3 keep their positions and the pipeline export stays untouched.
+  // Styles are APPENDED after the original indices (typed 1/2/3, bold 4) so
+  // the pipeline export stays untouched. 5+ are the styled costing set,
+  // matching the user's hand-formatted reference file: Calibri 14 base,
+  // black header band with white bold text, grey phase band, orange SUMMARY
+  // band, money #,##0 and percent 0.0% at 14pt.
   zip.file(
     "xl/styles.xml",
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="3"><numFmt numFmtId="165" formatCode="dd/mm/yyyy"/><numFmt numFmtId="166" formatCode="0.0%"/><numFmt numFmtId="167" formatCode="#,##0"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="1"><fill><patternFill patternType="none"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="5"><xf numFmtId="0"/><xf numFmtId="165" applyNumberFormat="1"/><xf numFmtId="166" applyNumberFormat="1"/><xf numFmtId="167" applyNumberFormat="1"/><xf numFmtId="0" fontId="1" applyFont="1"/></cellXfs></styleSheet>`,
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">` +
+      `<numFmts count="3"><numFmt numFmtId="165" formatCode="dd/mm/yyyy"/><numFmt numFmtId="166" formatCode="0.0%"/><numFmt numFmtId="167" formatCode="#,##0"/></numFmts>` +
+      `<fonts count="5">` +
+      `<font><sz val="11"/><name val="Calibri"/></font>` +
+      `<font><b/><sz val="11"/><name val="Calibri"/></font>` +
+      `<font><sz val="14"/><name val="Calibri"/></font>` +
+      `<font><b/><sz val="14"/><name val="Calibri"/></font>` +
+      `<font><b/><sz val="14"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>` +
+      `</fonts>` +
+      `<fills count="5">` +
+      `<fill><patternFill patternType="none"/></fill>` +
+      `<fill><patternFill patternType="gray125"/></fill>` +
+      `<fill><patternFill patternType="solid"><fgColor rgb="FF000000"/><bgColor indexed="64"/></patternFill></fill>` +
+      `<fill><patternFill patternType="solid"><fgColor rgb="FFA6A6A6"/><bgColor indexed="64"/></patternFill></fill>` +
+      `<fill><patternFill patternType="solid"><fgColor rgb="FFFFC000"/><bgColor indexed="64"/></patternFill></fill>` +
+      `</fills>` +
+      `<borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs>` +
+      `<cellXfs count="15">` +
+      `<xf numFmtId="0"/>` +
+      `<xf numFmtId="165" applyNumberFormat="1"/>` +
+      `<xf numFmtId="166" applyNumberFormat="1"/>` +
+      `<xf numFmtId="167" applyNumberFormat="1"/>` +
+      `<xf numFmtId="0" fontId="1" applyFont="1"/>` +
+      `<xf numFmtId="0" fontId="2" applyFont="1"/>` +
+      `<xf numFmtId="167" fontId="2" applyNumberFormat="1" applyFont="1"/>` +
+      `<xf numFmtId="166" fontId="2" applyNumberFormat="1" applyFont="1"/>` +
+      `<xf numFmtId="165" fontId="2" applyNumberFormat="1" applyFont="1"/>` +
+      `<xf numFmtId="0" fontId="3" applyFont="1"/>` +
+      `<xf numFmtId="0" fontId="4" fillId="2" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>` +
+      `<xf numFmtId="0" fontId="3" fillId="3" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center"/></xf>` +
+      `<xf numFmtId="0" fontId="2" fillId="3" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center"/></xf>` +
+      `<xf numFmtId="0" fontId="3" fillId="4" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>` +
+      `<xf numFmtId="0" fontId="2" fillId="4" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center"/></xf>` +
+      `</cellXfs></styleSheet>`,
   );
   const sheetViews =
     options.freezeRows && options.freezeRows > 0
       ? `<sheetViews><sheetView workbookViewId="0"><pane ySplit="${options.freezeRows}" topLeftCell="A${options.freezeRows + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`
       : "";
+  // Styled mode stamps the plain-14 xf on the columns too, so cells typed
+  // into the sheet later inherit the 14pt base.
+  const colStyle = styled ? ` style="5"` : "";
   const colsXml =
     options.cols && options.cols.length > 0
-      ? `<cols>${options.cols.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("")}</cols>`
+      ? `<cols>${options.cols.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}"${colStyle} customWidth="1"/>`).join("")}</cols>`
       : "";
   zip.file(
     "xl/worksheets/sheet1.xml",

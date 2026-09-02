@@ -194,8 +194,8 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
         import("./costingXlsx"),
         import("./xlsx"),
       ]);
-      const { rows, boldRows } = buildCostingRows(proposal, calc(proposal));
-      const buf = await buildWorkbook("Costing", rows, { boldRows, cols: COSTING_COLS, freezeRows: 4 });
+      const { rows, rowKinds } = buildCostingRows(proposal, calc(proposal));
+      const buf = await buildWorkbook("Costing", rows, { rowKinds, cols: COSTING_COLS, freezeRows: 4 });
       const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

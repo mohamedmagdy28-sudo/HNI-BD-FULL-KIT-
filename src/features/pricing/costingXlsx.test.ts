@@ -53,7 +53,7 @@ const moneyOf = (cell: XlsxCell): number => {
 describe("buildCostingRows", () => {
   const proposal = fixture();
   const result = calc(proposal);
-  const { rows, boldRows } = buildCostingRows(proposal, result);
+  const { rows, rowKinds } = buildCostingRows(proposal, result);
   const label = (row: XlsxCell[]) => (typeof row[0] === "string" ? row[0] : "");
   const findRow = (prefix: string) => {
     const row = rows.find((r) => label(r).startsWith(prefix));
@@ -61,27 +61,38 @@ describe("buildCostingRows", () => {
     return row;
   };
 
-  it("title block, internal subtitle, and the frozen header layout", () => {
+  it("title block, internal subtitle, and the styled header layout", () => {
     expect(rows[0]).toEqual(["Leadership Track", "Maaden", "2026-09-02", "SAR"]);
     expect(rows[1][0]).toBe("Internal costing — not for client distribution");
     expect(rows[3]).toEqual(["Item", "Qty", "Unit rate", "Subtotal"]);
-    expect(boldRows).toContain(0);
-    expect(boldRows).toContain(3);
+    expect(rowKinds[0]).toBe("title");
+    expect(rowKinds[3]).toBe("header");
     expect(COSTING_COLS).toHaveLength(4);
   });
 
-  it("bold rows carry ONLY text cells (the bold xf would strip number formats)", () => {
-    for (const r of boldRows) {
+  it("kind rows carry ONLY text cells (their xfs would strip number formats)", () => {
+    for (const r of Object.keys(rowKinds).map(Number)) {
       for (const cell of rows[r]) {
         expect(cell === null || typeof cell === "string").toBe(true);
       }
     }
   });
 
+  it("band rows span all four columns and the named kinds match the reference file", () => {
+    const kinds = Object.entries(rowKinds);
+    const phaseRows = kinds.filter(([, k]) => k === "phase").map(([r]) => Number(r));
+    expect(phaseRows).toHaveLength(2); // one band per phase
+    for (const r of phaseRows) expect(rows[r].slice(1)).toEqual(["", "", ""]); // grey band spans the table
+    const sectionRows = kinds.filter(([, k]) => k === "section").map(([r]) => Number(r));
+    expect(sectionRows).toHaveLength(1); // SUMMARY orange band
+    expect(rows[sectionRows[0]][0]).toBe("SUMMARY");
+    expect(kinds.filter(([, k]) => k === "title")).toHaveLength(2); // title + PAYMENT SCHEDULE
+  });
+
   it("per-phase economics match calc exactly, including the override", () => {
     expect(moneyOf(findRow("Phase total cost")[3])).toBe(27000);
     const phase2Price = findRow("Delivery");
-    expect(boldRows).toContain(rows.indexOf(phase2Price));
+    expect(rowKinds[rows.indexOf(phase2Price)]).toBe("phase");
     // Phase price rows appear once per phase, in order.
     const priceRows = rows.filter((r) => label(r) === "Phase price");
     expect(priceRows.map((r) => moneyOf(r[3]))).toEqual([result.programs[0].listShare, result.programs[1].listShare]);

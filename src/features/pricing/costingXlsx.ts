@@ -11,7 +11,7 @@
 
 import type { CalcResult } from "./calc";
 import type { Proposal } from "./types";
-import type { XlsxCell } from "./xlsx";
+import type { RowKind, XlsxCell } from "./xlsx";
 
 const money = (v: number): XlsxCell => ({ t: "money", v });
 const pct = (v: number): XlsxCell => ({ t: "pct", v: v / 100 });
@@ -33,29 +33,30 @@ export function costingFileName(clientName: string, title: string, isoDate: stri
 }
 
 /**
- * The costing sheet as typed rows plus the row indices to render bold.
- * boldRows may contain ONLY all-text rows (one bold cellXf with numFmtId 0
- * would strip the money format from typed cells); this builder guarantees it —
- * header, phase-name, and section-label rows carry no typed cells.
+ * The costing sheet as typed rows plus each styled row's named treatment
+ * (title / header / phase / section — see RowKind in xlsx.ts). Kind rows may
+ * contain ONLY text cells (their xfs carry numFmtId 0, so a typed cell would
+ * lose its number format); this builder guarantees it. Band rows carry ""
+ * cells across all four columns so the fill spans the full table width.
  */
-export function buildCostingRows(proposal: Proposal, result: CalcResult): { rows: XlsxCell[][]; boldRows: number[] } {
+export function buildCostingRows(proposal: Proposal, result: CalcResult): { rows: XlsxCell[][]; rowKinds: Record<number, RowKind> } {
   const rows: XlsxCell[][] = [];
-  const boldRows: number[] = [];
-  const bold = (row: XlsxCell[]) => {
-    boldRows.push(rows.length);
+  const rowKinds: Record<number, RowKind> = {};
+  const kind = (k: RowKind, row: XlsxCell[]) => {
+    rowKinds[rows.length] = k;
     rows.push(row);
   };
 
-  // Date stays an ISO STRING here: the title row is bold, and boldRows must
-  // hold only text cells (the bold xf carries numFmtId 0).
-  bold([proposal.title || "Untitled", proposal.clientName, proposal.date, proposal.currency]);
+  // Date stays an ISO STRING here: the title row is styled, and kind rows
+  // hold only text cells (their xfs carry numFmtId 0).
+  kind("title", [proposal.title || "Untitled", proposal.clientName, proposal.date, proposal.currency]);
   rows.push(["Internal costing — not for client distribution", null, null, null]);
   rows.push([null, null, null, null]);
-  bold(["Item", "Qty", "Unit rate", "Subtotal"]);
+  kind("header", ["Item", "Qty", "Unit rate", "Subtotal"]);
 
   proposal.programs.forEach((program, i) => {
     const totals = result.programs[i];
-    bold([`${program.name || `Program ${i + 1}`}${program.city ? ` · ${program.city}` : ""}`, null, null, null]);
+    kind("phase", [`${program.name || `Program ${i + 1}`}${program.city ? ` · ${program.city}` : ""}`, "", "", ""]);
     for (const line of program.costLines) {
       const qty = Number.isFinite(line.qty) ? Math.max(0, line.qty) : 0;
       const rate = Number.isFinite(line.unitRate) ? Math.max(0, line.unitRate) : 0;
@@ -72,7 +73,7 @@ export function buildCostingRows(proposal: Proposal, result: CalcResult): { rows
     rows.push([null, null, null, null]);
   });
 
-  bold(["SUMMARY", null, null, null]);
+  kind("section", ["SUMMARY", "", "", ""]);
   rows.push(["Total cost", null, null, money(result.totalCost)]);
   rows.push(["Markup % (default)", null, null, pct(Number.isFinite(proposal.markupPct) ? Math.max(0, proposal.markupPct) : 0)]);
   rows.push(["List price", null, null, money(result.listPrice)]);
@@ -91,14 +92,14 @@ export function buildCostingRows(proposal: Proposal, result: CalcResult): { rows
 
   if (result.scheduleValid && proposal.schedule.length > 0) {
     rows.push([null, null, null, null]);
-    bold(["PAYMENT SCHEDULE", null, null, null]);
+    kind("title", ["PAYMENT SCHEDULE", null, null, null]);
     proposal.schedule.forEach((item) => {
       const inst = result.installments.find((x) => x.itemId === item.id);
       rows.push([item.label || "—", null, pct(item.percent), inst ? money(inst.amount) : null]);
     });
   }
 
-  return { rows, boldRows };
+  return { rows, rowKinds };
 }
 
 /** Column widths (Excel character units) for the costing sheet. */
