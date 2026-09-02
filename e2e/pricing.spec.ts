@@ -521,3 +521,110 @@ test("per-phase pricing: override, chips, client doc sum, reset", async ({ page 
   await page.getByTestId("phase-reset-0").click();
   expect(digits(await page.getByTestId("list-price").textContent())).toBe(Math.round(37000 * 1.35));
 });
+
+test("costing Excel downloads from the editor with internal economics", async ({ page }, testInfo) => {
+  const lang = langFromProject(testInfo.project.name);
+  await gotoWithLanguage(page, "/", lang);
+  await createProposalWithProgram(page); // cost 27,000 at default 35%
+  await page.getByTestId("client-name").fill("Maaden");
+
+  const [download] = await Promise.all([page.waitForEvent("download"), page.getByTestId("download-costing").click()]);
+  expect(download.suggestedFilename()).toMatch(/^Costing - Maaden - .+\.xlsx$/);
+  const path = await download.path();
+  const { readFileSync } = await import("node:fs");
+  const JSZipMod = (await import("jszip")).default;
+  const zip = await JSZipMod.loadAsync(readFileSync(path!));
+  const sheet = await zip.file("xl/worksheets/sheet1.xml")!.async("string");
+  expect(sheet).toContain("Internal costing — not for client distribution");
+  expect(sheet).toContain("<v>27000</v>"); // cost line subtotal + phase cost as numbers
+  expect(sheet).toContain("<v>36450</v>"); // list price 27,000 x 1.35
+  expect(sheet).toContain('state="frozen"'); // header freeze pane
+  const styles = await zip.file("xl/styles.xml")!.async("string");
+  expect(styles).toContain("<b/>"); // bold header font present
+});
+
+test("costing Excel downloads from the Documents row for a sent proposal", async ({ page }, testInfo) => {
+  const lang = langFromProject(testInfo.project.name);
+  await gotoWithLanguage(page, "/", lang);
+  await createProposalWithProgram(page);
+  await page.getByTestId("client-name").fill("STC");
+  await page.getByTestId("mark-sent").click();
+  await page.getByTestId("documents-toggle").click();
+  const row = page.locator("[data-testid^='download-costing-']");
+  const [download] = await Promise.all([page.waitForEvent("download"), row.first().click()]);
+  expect(download.suggestedFilename()).toContain("Costing - STC");
+});
+
+test("custom terms: prefill, edit, render in client view, badge, lock", async ({ page }, testInfo) => {
+  const lang = langFromProject(testInfo.project.name);
+  await gotoWithLanguage(page, "/", lang);
+  await createProposalWithProgram(page);
+  await page.getByTestId("client-name").fill("Client");
+
+  // Switching to Custom pre-fills the standard terms in the box's format.
+  await page.getByTestId("terms-custom").click();
+  const box = page.getByTestId("custom-terms-input");
+  await expect(box).toBeVisible();
+  const prefilled = await box.inputValue();
+  expect(prefilled).toContain("Intellectual Property:");
+  expect(prefilled).toContain("- Standard payment terms: 30 days from invoice date.");
+  await expect(page.getByTestId("custom-terms-pages")).toContainText("2"); // parity with standard
+  await expect(page.getByTestId("custom-terms-badge")).toBeVisible();
+
+  // Edit one clause; the document renders the edit on branded terms pages.
+  await box.fill("Special Terms:\n- Payment due within 45 days of invoice.\n- Delivery in Q1 2027.");
+  await expect(page.getByTestId("custom-terms-pages")).toContainText("1");
+  await page.getByTestId("open-client-view").click();
+  const doc = page.getByTestId("client-document");
+  await expect(doc).toContainText("Special Terms:");
+  await expect(doc).toContainText("Payment due within 45 days of invoice.");
+  await expect(doc).not.toContainText("Intellectual Property"); // standard replaced
+  await page.getByTestId("client-view-back").click();
+
+  // Clearing the box falls back to standard terms (no blank pages, no badge).
+  await box.fill("");
+  await expect(page.getByTestId("custom-terms-empty")).toBeVisible();
+  await expect(page.getByTestId("custom-terms-badge")).toHaveCount(0);
+
+  // Restore custom text, then Mark as sent locks the terms controls.
+  await box.fill("Special Terms:\n- Payment due within 45 days.");
+  await page.getByTestId("mark-sent").click();
+  await expect(box).toBeDisabled();
+  await expect(page.getByTestId("terms-standard")).toBeDisabled();
+  await expect(page.getByTestId("custom-terms-badge")).toBeVisible();
+});
+
+test("long custom terms paginate without overflowing any page", async ({ page }, testInfo) => {
+  const lang = langFromProject(testInfo.project.name);
+  await gotoWithLanguage(page, "/", lang);
+  await createProposalWithProgram(page);
+  await page.getByTestId("client-name").fill("Client");
+  await page.getByTestId("terms-custom").click();
+
+  const clause = "- The service provider shall deliver all agreed materials and sessions per the mutually approved schedule and scope of work described in this proposal.";
+  const long = `General Provisions:\n${Array.from({ length: 60 }, () => clause).join("\n")}`;
+  await page.getByTestId("custom-terms-input").fill(long);
+  const pagesText = await page.getByTestId("custom-terms-pages").textContent();
+  const pageCount = Number((pagesText ?? "").replace(/[^0-9]/g, ""));
+  expect(pageCount).toBeGreaterThan(2);
+
+  await page.getByTestId("open-client-view").click();
+  // 2 fixed pages before terms + N terms pages + bank + thank-you.
+  const docPages = page.locator(".doc-page");
+  await expect(docPages).toHaveCount(4 + pageCount);
+  // No terms page's content spills below its fixed page box: every block of
+  // every page sits inside the page bounds (overflow-hidden would CLIP, which
+  // a client would see as cut-off text).
+  const overflows = await page.evaluate(() => {
+    const out: number[] = [];
+    document.querySelectorAll(".doc-page").forEach((pageEl, i) => {
+      const pageRect = pageEl.getBoundingClientRect();
+      pageEl.querySelectorAll("p, li").forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.bottom > pageRect.bottom + 1) out.push(i);
+      });
+    });
+    return [...new Set(out)];
+  });
+  expect(overflows).toEqual([]);
+});

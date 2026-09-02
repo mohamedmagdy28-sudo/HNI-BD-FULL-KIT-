@@ -21,6 +21,8 @@ export type DeckDict = {
   docBreakdown: string;
   docTerms1: string;
   docTerms2: string;
+  /** "Terms and Conditions ({k}/{n})" for custom terms pages. */
+  docTermsPage: string;
   docBank: string;
   docDays: string;
   docParticipants: string;
@@ -69,6 +71,11 @@ export type DeckInput = {
   termsPage1: TermsSectionData[];
   termsPage2: TermsSectionData[];
   bankDetails: Array<{ label: string; value: string }>;
+  /**
+   * Pre-paginated custom terms (the CALLER runs the shared paginator in
+   * customTerms.ts); null/absent = the standard two terms slides.
+   */
+  customTermsPages?: Array<Array<{ kind: "heading" | "item" | "para"; text: string }>> | null;
 };
 
 // Template palette (pptxgenjs hex colors never carry a leading '#').
@@ -234,6 +241,60 @@ function addTermsSlide(
   addChrome(slide, input.assets, QUARTER_RING);
 }
 
+const ARABIC_STRONG_RE = ARABIC_RE;
+
+/**
+ * Custom terms slides, one per pre-paginated page (design:
+ * cost-excel-and-custom-terms.md). Every block renders through splitMixedRuns —
+ * the guard against the mixed Arabic+Latin-digit run corruption (#1349) and
+ * the Tajawal/Myriad assignment. Per-paragraph alignment follows the block's
+ * own first strong character, so pasted Arabic clauses align right.
+ * The legal-English note is deliberately absent (it asserts the standard
+ * English text is authoritative, which is false for negotiated terms).
+ */
+function addCustomTermsSlides(pres: pptxgen, input: DeckInput) {
+  const pages = input.customTermsPages ?? [];
+  const isRtl = (text: string): boolean => {
+    for (const ch of text) {
+      if (ARABIC_STRONG_RE.test(ch)) return true;
+      if (/[A-Za-z]/.test(ch)) return false;
+    }
+    return false;
+  };
+  pages.forEach((blocks, k) => {
+    const slide = pres.addSlide();
+    const title = input.dict.docTermsPage.replace("{k}", String(k + 1)).replace("{n}", String(pages.length));
+    addHeading(slide, title, input.lang, 0.2);
+    const runs: Array<{ text: string; options: Record<string, unknown> }> = [];
+    for (const block of blocks) {
+      const align = isRtl(block.text) ? "right" : "left";
+      const base =
+        block.kind === "heading"
+          ? { fontSize: 11.5, bold: true, color: BLACK }
+          : { fontSize: 10, color: GREY };
+      const split = splitMixedRuns(block.text, base);
+      split.forEach((run, i) => {
+        const last = i === split.length - 1;
+        runs.push({
+          text: run.text,
+          options: {
+            ...run.options,
+            align,
+            rtlMode: align === "right",
+            ...(block.kind === "item" && i === 0 ? { bullet: true } : {}),
+            ...(last
+              ? { breakLine: true, ...(block.kind === "heading" ? { paraSpaceBefore: 6 } : { paraSpaceAfter: 2 }) }
+              : {}),
+          },
+        });
+      });
+    }
+    slide.addText(runs as never, { x: 0.35, y: 0.95, w: 12.6, h: 4.9, isTextBox: true, margin: 0, valign: "top" });
+    addSignatureStrip(slide, input);
+    addChrome(slide, input.assets, QUARTER_RING);
+  });
+}
+
 export function buildProposalDeck(input: DeckInput): pptxgen {
   const { proposal, result, dict: p, lang, assets } = input;
   const pres = new pptxgen();
@@ -379,10 +440,14 @@ export function buildProposalDeck(input: DeckInput): pptxgen {
   });
   addChrome(br, assets, QUARTER_RING);
 
-  // ---- Slides 3-4: Terms (native English text, editable) --------------
-  // Imported lazily by the caller to avoid a circular import in tests.
-  addTermsSlide(pres, input, p.docTerms1, input.termsPage1);
-  addTermsSlide(pres, input, p.docTerms2, input.termsPage2);
+  // ---- Slides 3-4 (or 3..N): Terms — custom pages when set, else the
+  // standard two verbatim English slides. Same rule as the client view.
+  if (input.customTermsPages && input.customTermsPages.length > 0) {
+    addCustomTermsSlides(pres, input);
+  } else {
+    addTermsSlide(pres, input, p.docTerms1, input.termsPage1);
+    addTermsSlide(pres, input, p.docTerms2, input.termsPage2);
+  }
 
   // ---- Slide 5: Bank details ------------------------------------------
   const bank = pres.addSlide();

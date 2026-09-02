@@ -1,8 +1,10 @@
-import { FileText, Calculator } from "lucide-react";
+import { FileText, Calculator, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/app/States";
+import { StatusBadge } from "@/components/app/StatusBadge";
 import { formatCurrency, useI18n } from "@/lib/i18n";
 import { calc } from "./calc";
+import { hasCustomTerms } from "./customTerms";
 import type { Proposal } from "./types";
 
 type Props = {
@@ -10,6 +12,8 @@ type Props = {
   documents: Proposal[];
   onOpenDocument: (id: string) => void;
   onOpenCosting: (id: string) => void;
+  /** Downloads the internal costing workbook for one sent proposal. */
+  onDownloadCosting: (id: string) => void;
 };
 
 /**
@@ -17,7 +21,7 @@ type Props = {
  * it from data reproduces the exact document that was quoted; no file bytes
  * are stored. Newest first by sentAt.
  */
-export function DocumentsList({ documents, onOpenDocument, onOpenCosting }: Props) {
+export function DocumentsList({ documents, onOpenDocument, onOpenCosting, onDownloadCosting }: Props) {
   const { t, locale } = useI18n();
   const p = t.pricing;
 
@@ -46,7 +50,16 @@ export function DocumentsList({ documents, onOpenDocument, onOpenCosting }: Prop
             const result = calc(proposal);
             return (
               <tr key={proposal.id} className="border-b border-line-1 last:border-b-0" data-testid={`document-row-${proposal.id}`}>
-                <td className="px-3 py-2.5 font-medium text-hni-black">{proposal.title || p.untitled}</td>
+                <td className="px-3 py-2.5 font-medium text-hni-black">
+                  <span className="flex items-center gap-1.5">
+                    {proposal.title || p.untitled}
+                    {hasCustomTerms(proposal) && (
+                      <span data-testid={`doc-custom-terms-${proposal.id}`}>
+                        <StatusBadge tone="neutral">{p.customTermsBadge}</StatusBadge>
+                      </span>
+                    )}
+                  </span>
+                </td>
                 <td className="px-3 py-2.5 text-hni-grey-dark">{proposal.clientName || "—"}</td>
                 <td className="tabular px-3 py-2.5 text-hni-grey-dark">{sentOn(proposal.sentAt)}</td>
                 <td className="tabular px-3 py-2.5 text-end font-semibold text-hni-black">
@@ -57,6 +70,16 @@ export function DocumentsList({ documents, onOpenDocument, onOpenCosting }: Prop
                     <Button variant="ghost" size="sm" className="h-7 px-2 text-[12.5px]" onClick={() => onOpenCosting(proposal.id)}>
                       <Calculator className="size-3.5" aria-hidden />
                       {p.docsViewCosting}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-[12.5px]"
+                      data-testid={`download-costing-${proposal.id}`}
+                      onClick={() => onDownloadCosting(proposal.id)}
+                    >
+                      <FileSpreadsheet className="size-3.5" aria-hidden />
+                      {p.downloadCosting}
                     </Button>
                     <Button
                       variant="outline"

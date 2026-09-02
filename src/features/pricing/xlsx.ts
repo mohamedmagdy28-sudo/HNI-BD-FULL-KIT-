@@ -214,18 +214,32 @@ function colRef(i: number): string {
   return out;
 }
 
+/** Optional presentation extras for the costing sheet; omitted = today's exact output. */
+export type WorkbookOptions = {
+  /** Row indices (0-based) rendered bold. TEXT cells only: the bold xf carries numFmtId 0, so a typed cell in a bold row would lose its number format. */
+  boldRows?: number[];
+  /** Column widths in Excel character units, emitted as a <cols> block. */
+  cols?: number[];
+  /** Freeze this many top rows. */
+  freezeRows?: number;
+};
+
 /**
  * Minimal single-sheet .xlsx with native cell types: money as numbers with a
  * #,##0 format (Excel shows 8,000,000 itself), percents as fractions with a
  * percent format, dates as date-formatted serials, text as inline strings.
  * Built on the JSZip already in the tree — no spreadsheet library.
  */
-export async function buildWorkbook(sheetName: string, rows: XlsxCell[][]): Promise<ArrayBuffer> {
+export async function buildWorkbook(sheetName: string, rows: XlsxCell[][], options: WorkbookOptions = {}): Promise<ArrayBuffer> {
   const { default: JSZipCtor } = await import("jszip");
+  const boldSet = new Set(options.boldRows ?? []);
   const cellXml = (cell: XlsxCell, r: number, c: number): string => {
     if (cell === null || cell === "") return "";
     const ref = `${colRef(c)}${r + 1}`;
-    if (typeof cell === "string") return `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${xmlEscape(cell)}</t></is></c>`;
+    if (typeof cell === "string") {
+      const style = boldSet.has(r) ? ` s="4"` : "";
+      return `<c r="${ref}" t="inlineStr"${style}><is><t xml:space="preserve">${xmlEscape(cell)}</t></is></c>`;
+    }
     if (typeof cell === "number") return `<c r="${ref}"><v>${cell}</v></c>`;
     const style = { date: 1, pct: 2, money: 3 }[cell.t];
     return `<c r="${ref}" s="${style}"><v>${cell.v}</v></c>`;
@@ -250,13 +264,23 @@ export async function buildWorkbook(sheetName: string, rows: XlsxCell[][]): Prom
     "xl/_rels/workbook.xml.rels",
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`,
   );
+  // The bold xf (s=4) is APPENDED after the existing indices so the typed
+  // styles 1/2/3 keep their positions and the pipeline export stays untouched.
   zip.file(
     "xl/styles.xml",
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="3"><numFmt numFmtId="165" formatCode="dd/mm/yyyy"/><numFmt numFmtId="166" formatCode="0.0%"/><numFmt numFmtId="167" formatCode="#,##0"/></numFmts><fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts><fills count="1"><fill><patternFill patternType="none"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="4"><xf numFmtId="0"/><xf numFmtId="165" applyNumberFormat="1"/><xf numFmtId="166" applyNumberFormat="1"/><xf numFmtId="167" applyNumberFormat="1"/></cellXfs></styleSheet>`,
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="3"><numFmt numFmtId="165" formatCode="dd/mm/yyyy"/><numFmt numFmtId="166" formatCode="0.0%"/><numFmt numFmtId="167" formatCode="#,##0"/></numFmts><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="1"><fill><patternFill patternType="none"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="5"><xf numFmtId="0"/><xf numFmtId="165" applyNumberFormat="1"/><xf numFmtId="166" applyNumberFormat="1"/><xf numFmtId="167" applyNumberFormat="1"/><xf numFmtId="0" fontId="1" applyFont="1"/></cellXfs></styleSheet>`,
   );
+  const sheetViews =
+    options.freezeRows && options.freezeRows > 0
+      ? `<sheetViews><sheetView workbookViewId="0"><pane ySplit="${options.freezeRows}" topLeftCell="A${options.freezeRows + 1}" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>`
+      : "";
+  const colsXml =
+    options.cols && options.cols.length > 0
+      ? `<cols>${options.cols.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("")}</cols>`
+      : "";
   zip.file(
     "xl/worksheets/sheet1.xml",
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${sheetData}</sheetData></worksheet>`,
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${sheetViews}${colsXml}<sheetData>${sheetData}</sheetData></worksheet>`,
   );
   return zip.generateAsync({ type: "arraybuffer" });
 }

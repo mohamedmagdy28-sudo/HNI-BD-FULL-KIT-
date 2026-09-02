@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCheck, Copy, Download, Eye, FilePlus2, Files, ImagePlus, KanbanSquare, Trash2, Upload, X } from "lucide-react";
+import { CheckCheck, Copy, Download, Eye, FilePlus2, Files, FileSpreadsheet, ImagePlus, KanbanSquare, Trash2, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader } from "@/components/app/PageHeader";
 import { EmptyState } from "@/components/app/States";
@@ -14,6 +15,8 @@ import { CostTable } from "./CostTable";
 import { DocumentsList } from "./DocumentsList";
 import { PipelineTab } from "./PipelineTab";
 import { SummaryPanel } from "./SummaryPanel";
+import { customTermsPageCount, hasCustomTerms, serializeStandardTerms } from "./customTerms";
+import { TERMS_PAGE_1, TERMS_PAGE_2 } from "./template";
 import { fileToLogoDataUrl } from "./logo";
 import { debounce, LocalStoragePricingStore, type PricingStore } from "./store";
 import {
@@ -176,6 +179,33 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
     if (!window.confirm(p.confirmDeleteImported)) return;
     setExternals(externals.filter((d) => d.id !== id));
     pricingStore.deleteExternalDeal(id);
+  };
+
+  /**
+   * Internal costing workbook (design: cost-excel-and-custom-terms.md).
+   * Regenerated from data on every click, never stored; works on drafts and
+   * sent proposals alike (the sent data is frozen, so the file reproduces the
+   * quoted economics exactly).
+   */
+  const downloadCosting = async (proposal: Proposal) => {
+    try {
+      // Lazy: keeps the writer + jszip out of the main bundle.
+      const [{ buildCostingRows, costingFileName, COSTING_COLS }, { buildWorkbook }] = await Promise.all([
+        import("./costingXlsx"),
+        import("./xlsx"),
+      ]);
+      const { rows, boldRows } = buildCostingRows(proposal, calc(proposal));
+      const buf = await buildWorkbook("Costing", rows, { boldRows, cols: COSTING_COLS, freezeRows: 4 });
+      const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = costingFileName(proposal.clientName, proposal.title, proposal.date, p.untitled);
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: p.exportError, variant: "destructive" });
+    }
   };
 
   const updateTargets = (targets: Targets) => {
@@ -398,6 +428,10 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
             setCurrentId(id);
             setMode("edit");
           }}
+          onDownloadCosting={(id) => {
+            const target = proposals.find((x) => x.id === id);
+            if (target) void downloadCosting(target);
+          }}
         />
       )}
 
@@ -545,7 +579,12 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
                     )}
                   </div>
                 </div>
-                <span data-testid="sent-badge" className="mb-1.5">
+                <span data-testid="sent-badge" className="mb-1.5 flex items-center gap-1.5">
+                  {hasCustomTerms(current) && (
+                    <span data-testid="custom-terms-badge">
+                      <StatusBadge tone="neutral">{p.customTermsBadge}</StatusBadge>
+                    </span>
+                  )}
                   <StatusBadge tone={locked ? "success" : "neutral"}>{locked ? p.sent : p.draft}</StatusBadge>
                 </span>
               </div>
@@ -574,6 +613,15 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
                   {p.clientView}
                 </Button>
                 <Button
+                  variant="outline"
+                  size="sm"
+                  data-testid="download-costing"
+                  onClick={() => void downloadCosting(current)}
+                >
+                  <FileSpreadsheet className="size-4" aria-hidden />
+                  {p.downloadCosting}
+                </Button>
+                <Button
                   variant="ghost"
                   size="sm"
                   data-testid="delete-proposal"
@@ -595,6 +643,61 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
               groupLabel={sectionKindLabel(current.sectionLabel, p)}
               onChange={(programs) => updateCurrent({ programs })}
             />
+
+            {/* Terms & Conditions: standard by default; Custom pre-fills the
+                box with the standard text so the user edits deltas (design:
+                cost-excel-and-custom-terms.md). Quote field: sent-locked. */}
+            <section className="rounded-lg border border-line-1 bg-surface-0 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="me-1 text-[13px] font-semibold text-hni-black">{p.termsTitle}</h3>
+                <Button
+                  variant={current.customTerms == null ? "default" : "outline"}
+                  size="sm"
+                  className="h-7"
+                  disabled={locked}
+                  data-testid="terms-standard"
+                  onClick={() => updateCurrent({ customTerms: null })}
+                >
+                  {p.standardTermsOption}
+                </Button>
+                <Button
+                  variant={current.customTerms != null ? "default" : "outline"}
+                  size="sm"
+                  className="h-7"
+                  disabled={locked}
+                  data-testid="terms-custom"
+                  onClick={() => {
+                    if (current.customTerms == null)
+                      updateCurrent({ customTerms: serializeStandardTerms([...TERMS_PAGE_1, ...TERMS_PAGE_2]) });
+                  }}
+                >
+                  {p.customTermsOption}
+                </Button>
+              </div>
+              {current.customTerms != null && (
+                <div className="mt-2">
+                  <Textarea
+                    value={current.customTerms}
+                    disabled={locked}
+                    rows={10}
+                    dir="auto"
+                    className="text-[13px] leading-relaxed"
+                    data-testid="custom-terms-input"
+                    onChange={(e) => updateCurrent({ customTerms: e.target.value })}
+                  />
+                  <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-[12px] text-hni-grey-dark">
+                    <span>{p.customTermsHint}</span>
+                    {hasCustomTerms(current) ? (
+                      <span className="tabular" data-testid="custom-terms-pages">
+                        {p.rendersAsPages.replace("{n}", String(customTermsPageCount(current.customTerms)))}
+                      </span>
+                    ) : (
+                      <span data-testid="custom-terms-empty">{p.customTermsEmptyFallback}</span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </section>
           </div>
 
           <div className="lg:sticky lg:top-4">

@@ -167,3 +167,58 @@ describe("buildProposalDeck", () => {
     expect(slide2).not.toContain(getPricingDict("en").docDiscount);
   });
 });
+
+describe("custom terms slides (design: cost-excel-and-custom-terms.md)", () => {
+  const page = (blocks: Array<{ kind: "heading" | "item" | "para"; text: string }>) => blocks;
+
+  it("replaces the two standard terms slides with one slide per paginated page", async () => {
+    const input = {
+      ...makeInput("en"),
+      customTermsPages: [
+        page([{ kind: "heading", text: "Payment Terms:" }, { kind: "item", text: "50% on signature." }]),
+        page([{ kind: "para", text: "All fees are exclusive of VAT." }]),
+        page([{ kind: "item", text: "Final clause on the last page." }]),
+      ],
+    } satisfies DeckInput;
+    const slides = await unzipDeck(input);
+    // 4 constant slides (cover, breakdown, bank, thank-you) + 3 terms slides.
+    expect(slides.size).toBe(7);
+    const all = [...slides.values()].join("");
+    expect(all).not.toContain("Intellectual Property"); // standard terms replaced
+    expect(all).toContain("Payment Terms:");
+    // The LAST block's text appears on the last terms slide (slide 5 = 2 + 3rd terms page).
+    expect(slides.get("ppt/slides/slide5.xml")).toContain("Final clause on the last page.");
+    // The legal-English note never renders on custom pages (it asserts the
+    // standard English text is authoritative).
+    expect(all).not.toContain(getPricingDict("ar").docLegalEnNote);
+  });
+
+  it("mixed Arabic-with-digits clauses split into single-script runs (the #1349 guard)", async () => {
+    const input = {
+      ...makeInput("ar"),
+      customTermsPages: [page([{ kind: "item", text: "الدفع خلال 30 يومًا من تاريخ الفاتورة SAR" }])],
+    } satisfies DeckInput;
+    const slides = await unzipDeck(input);
+    const termsSlide = slides.get("ppt/slides/slide3.xml") ?? "";
+    // The digit run and the Arabic runs must be separate <a:r> elements with
+    // different fonts: no single run carries both scripts.
+    expect(termsSlide).toContain("Tajawal");
+    const runs = termsSlide.match(/<a:t>[^<]*<\/a:t>/g) ?? [];
+    for (const run of runs) {
+      const text = run.replace(/<\/?a:t>/g, "");
+      const hasArabic = /[؀-ۿ]/.test(text);
+      const hasLatinStrong = /[A-Za-z0-9]/.test(text);
+      expect(hasArabic && hasLatinStrong).toBe(false);
+    }
+    // RTL alignment for the Arabic block.
+    expect(termsSlide).toContain('algn="r"');
+  });
+
+  it("null customTermsPages keeps the standard two terms slides untouched", async () => {
+    const input = { ...makeInput("en"), customTermsPages: null } satisfies DeckInput;
+    const slides = await unzipDeck(input);
+    expect(slides.size).toBe(6);
+    const all = [...slides.values()].join("");
+    expect(all).toContain("Intellectual Property");
+  });
+});

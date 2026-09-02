@@ -152,6 +152,13 @@ export type Proposal = {
   vatPct: number;
   schedule: ScheduleItem[];
   programs: Program[];
+  /**
+   * Custom Terms & Conditions replacing the standard pages when non-blank
+   * (design: docs/designs/cost-excel-and-custom-terms.md). Line format:
+   * "- " = bullet, trailing ":" = heading. null/absent = standard terms.
+   * Quote field: covered by the sent-lock like every other quote field.
+   */
+  customTerms?: string | null;
   /** Set by the explicit Mark-as-sent action; a sent proposal is locked read-only. */
   sentAt: string | null;
   /** Sales pipeline state; {} until the user sets a field. Membership rule: in the pipeline iff stage is set. */
@@ -287,6 +294,7 @@ export function normalizeProposal(p: Proposal): Proposal {
     projectType: p.projectType === "workshop" ? "workshop" : "custom",
     sectionLabel: LEGACY_SECTION_LABELS[rawLabel] ?? "",
     clientLogo: asImageDataUrl(p.clientLogo),
+    customTerms: typeof p.customTerms === "string" ? p.customTerms : null,
     pipeline: { ...rawPipeline, stage },
     programs: p.programs.map((pr) => ({
       ...pr,

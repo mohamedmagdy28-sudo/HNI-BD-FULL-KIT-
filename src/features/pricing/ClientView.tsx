@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { formatCurrency, getPricingDict, useI18n, type Lang } from "@/lib/i18n";
 import { hasDescriptions as computeHasDescriptions } from "./documentPredicates";
+import { hasCustomTerms, paginateTerms, parseCustomTerms, type TermsBlock } from "./customTerms";
 import type { CalcResult } from "./calc";
 import { fileToLogoDataUrl } from "./logo";
 import { sectionKindLabel, type Proposal, type Settings } from "./types";
@@ -106,6 +107,71 @@ function SignatureBlock({ clientName, settings }: { clientName: string; settings
   );
 }
 
+/**
+ * One page of user-authored terms (design: cost-excel-and-custom-terms.md).
+ * Same chrome as TermsPage; content comes pre-paginated from the shared
+ * paginator so these pages and the PPT slides break identically. Blocks use
+ * dir="auto" so pasted Arabic clauses align right on their own. The
+ * legal-English note is deliberately absent: it asserts the standard English
+ * text is authoritative, which is false for negotiated custom terms.
+ */
+function CustomTermsPage({
+  title,
+  blocks,
+  clientName,
+  settings,
+}: {
+  title: string;
+  blocks: TermsBlock[];
+  clientName: string;
+  settings: Settings;
+}) {
+  const rendered: ReactNode[] = [];
+  let list: string[] = [];
+  const flushList = () => {
+    if (list.length === 0) return;
+    rendered.push(
+      <ul key={`list-${rendered.length}`} className="mb-2 list-disc space-y-0.5 ps-5">
+        {list.map((item, i) => (
+          <li key={i} dir="auto" className="text-start" style={{ overflowWrap: "anywhere" }}>
+            {item}
+          </li>
+        ))}
+      </ul>,
+    );
+    list = [];
+  };
+  blocks.forEach((block, i) => {
+    if (block.kind === "item") {
+      list.push(block.text);
+      return;
+    }
+    flushList();
+    if (block.kind === "heading") {
+      rendered.push(
+        <p key={i} dir="auto" className="mb-1 mt-3 text-start text-[11.5pt] font-bold first:mt-0">
+          {block.text}
+        </p>,
+      );
+    } else {
+      rendered.push(
+        <p key={i} dir="auto" className="mb-2 text-start" style={{ overflowWrap: "anywhere" }}>
+          {block.text}
+        </p>,
+      );
+    }
+  });
+  flushList();
+  return (
+    <DocPage>
+      <h2 className="absolute left-[0.36in] top-[0.17in] text-[26pt] font-bold text-hni-black">{title}</h2>
+      <div className="absolute left-[0.36in] right-[0.4in] top-[1.1in] text-[10.5pt] leading-[1.45]">{rendered}</div>
+      <SignatureBlock clientName={clientName} settings={settings} />
+      <PageChrome />
+    </DocPage>
+  );
+}
+
 function TermsPage({
   title,
   sections,
@@ -187,6 +253,7 @@ export function ClientView({ proposal, result, settings, onSettingsChange, onBac
         termsPage1: TERMS_PAGE_1,
         termsPage2: TERMS_PAGE_2,
         bankDetails: BANK_DETAILS,
+        customTermsPages,
       });
       await pres.writeFile({ fileName: exporter.proposalFileName(proposal.clientName, proposal.date) });
     } catch (err) {
@@ -222,6 +289,7 @@ export function ClientView({ proposal, result, settings, onSettingsChange, onBac
   };
 
   const money = (v: number) => formatCurrency(v, locale);
+  const customTermsPages = hasCustomTerms(proposal) ? paginateTerms(parseCustomTerms(proposal.customTerms as string)) : null;
   const groupLabel = sectionKindLabel(proposal.sectionLabel, p);
   const hasDescriptions = computeHasDescriptions(proposal.programs);
   const proposedIn = proposal.date
@@ -437,9 +505,24 @@ export function ClientView({ proposal, result, settings, onSettingsChange, onBac
             <PageChrome />
           </DocPage>
 
-          {/* Pages 3-4 — Terms (verbatim, English) with blank signature strips. */}
-          <TermsPage title={p.docTerms1} sections={TERMS_PAGE_1} note={p.docLegalEnNote} clientName={proposal.clientName} settings={settings} />
-          <TermsPage title={p.docTerms2} sections={TERMS_PAGE_2} note={p.docLegalEnNote} clientName={proposal.clientName} settings={settings} />
+          {/* Pages 3-4 — Terms: user-authored custom pages when set, else the
+              standard verbatim English pages. Same rule as the PPT slides. */}
+          {customTermsPages ? (
+            customTermsPages.map((blocks, k) => (
+              <CustomTermsPage
+                key={k}
+                title={p.docTermsPage.replace("{k}", String(k + 1)).replace("{n}", String(customTermsPages.length))}
+                blocks={blocks}
+                clientName={proposal.clientName}
+                settings={settings}
+              />
+            ))
+          ) : (
+            <>
+              <TermsPage title={p.docTerms1} sections={TERMS_PAGE_1} note={p.docLegalEnNote} clientName={proposal.clientName} settings={settings} />
+              <TermsPage title={p.docTerms2} sections={TERMS_PAGE_2} note={p.docLegalEnNote} clientName={proposal.clientName} settings={settings} />
+            </>
+          )}
 
           {/* Page 5 — Bank details. */}
           <DocPage>
