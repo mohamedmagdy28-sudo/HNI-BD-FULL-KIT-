@@ -117,6 +117,8 @@ export type ExternalDeal = {
     /** Currency is not SAR: excluded from sums (values would mix denominations). */
     nonSar?: boolean;
   };
+  /** Cloud mode only: set on teammates' pipeline rows (pseudo-externals) to badge the owner. */
+  ownerName?: string;
 };
 
 export type Targets = {

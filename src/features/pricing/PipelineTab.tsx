@@ -586,7 +586,12 @@ export function PipelineTab({
                     {row.weightedGp != null ? <bdi>{money(row.weightedGp)}</bdi> : "—"}
                   </td>
                   <td className="px-2 py-1.5 text-end">
-                    {row.kind === "external" ? (
+                    {row.kind === "external" && row.external?.ownerName ? (
+                      // A teammate's deal (cloud mode): journey editable, not deletable here.
+                      <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[11px] text-hni-grey-dark" data-testid={`team-row-owner-${row.id}`}>
+                        {row.external.ownerName}
+                      </span>
+                    ) : row.kind === "external" ? (
                       <Button
                         variant="ghost"
                         size="icon"

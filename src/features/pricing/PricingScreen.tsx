@@ -50,6 +50,9 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
   const [initialLoad] = useState(() => pricingStore.loadAll());
   const [mountedAt] = useState(() => Date.now());
   const [proposals, setProposals] = useState<Proposal[]>(initialLoad.proposals);
+  /** Cloud mode: teammates' proposals — a SEPARATE surface, never merged into
+      `proposals` and never fed to pipeline math (accounts-supabase.md). */
+  const [teamProposals, setTeamProposals] = useState(initialLoad.teamProposals ?? []);
   const [settings, setSettings] = useState<Settings>(initialLoad.settings);
   const [currentId, setCurrentId] = useState<string | null>(initialLoad.proposals[0]?.id ?? null);
   const [externals, setExternals] = useState<ExternalDeal[]>(initialLoad.externalDeals);
@@ -68,6 +71,22 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
       }, 300),
     [pricingStore],
   );
+  // Cloud mode: after a background refresh of shared/team data, re-read the
+  // store snapshot (own drafts keep their in-memory versions inside the store).
+  useEffect(() => {
+    const cloud = pricingStore as { onRemoteRefresh?: (() => void) | null };
+    if (!("onRemoteRefresh" in cloud)) return;
+    cloud.onRemoteRefresh = () => {
+      const fresh = pricingStore.loadAll();
+      setExternals(fresh.externalDeals);
+      setTeamProposals(fresh.teamProposals ?? []);
+      setSettings((prev) => ({ ...prev, targets: fresh.settings.targets }));
+    };
+    return () => {
+      cloud.onRemoteRefresh = null;
+    };
+  }, [pricingStore]);
+
   // Pending autosave writes must land before the tab closes or the component unmounts.
   useEffect(() => {
     const flush = () => save.flush();
@@ -78,8 +97,12 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
     };
   }, [save]);
 
-  const current = proposals.find((x) => x.id === currentId) ?? null;
-  const locked = current?.sentAt != null;
+  const ownCurrent = proposals.find((x) => x.id === currentId) ?? null;
+  const teamEntry = ownCurrent ? null : (teamProposals.find((t) => t.proposal.id === currentId) ?? null);
+  const current = ownCurrent ?? teamEntry?.proposal ?? null;
+  /** Viewing a teammate's proposal: quote read-only (ownership lock, not sentAt). */
+  const isTeamView = teamEntry != null;
+  const locked = current?.sentAt != null || isTeamView;
   const result = useMemo(() => (current ? calc(current) : null), [current]);
 
   const updateCurrent = (patch: Partial<Proposal>) => {
@@ -111,7 +134,7 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
   };
 
   const duplicateProposal = () => {
-    if (!current) return;
+    if (!current || isTeamView) return;
     addProposal({
       ...structuredClone(current),
       id: newId(),
@@ -147,11 +170,30 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
    */
   const updatePipeline = (proposalId: string, patch: Partial<PipelineInfo>) => {
     const target = proposals.find((x) => x.id === proposalId);
-    if (!target) return;
+    if (!target) {
+      // A teammate's proposal (team view): journey stays team-editable and
+      // routes to the shared row; quote content is untouchable by RLS anyway.
+      const entry = teamProposals.find((t) => t.proposal.id === proposalId);
+      if (!entry) return;
+      const merged = { ...entry.proposal.pipeline, ...patch };
+      setTeamProposals(teamProposals.map((t) => (t.proposal.id === proposalId ? { ...t, proposal: { ...t.proposal, pipeline: merged } } : t)));
+      pricingStore.updateTeamJourney?.(proposalId, merged);
+      return;
+    }
     const updated = { ...target, pipeline: { ...target.pipeline, ...patch } };
     const next = proposals.map((x) => (x.id === proposalId ? updated : x));
     setProposals(next);
-    save(updated, next.map((x) => x.id));
+    if (pricingStore.updateJourney) {
+      // Cloud: journey columns live on the shared row; gpPctOverride is quote
+      // data and flows through saveProposal (it also moves the GP columns).
+      const journeyPatch = { ...patch };
+      delete journeyPatch.gpPctOverride;
+      delete journeyPatch.copiedAt;
+      if (Object.keys(journeyPatch).length > 0) pricingStore.updateJourney(target, journeyPatch);
+      if ("gpPctOverride" in patch) save(updated, next.map((x) => x.id));
+    } else {
+      save(updated, next.map((x) => x.id));
+    }
   };
 
   const stampCopied = (proposalIds: string[]) => {
@@ -159,6 +201,12 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
     const ids = new Set(proposalIds);
     const next = proposals.map((x) => (ids.has(x.id) ? { ...x, pipeline: { ...x.pipeline, copiedAt: now } } : x));
     setProposals(next);
+    if (pricingStore.stampCopied) {
+      // Cloud: per-user stamps in the copies table (a colleague's copy never
+      // marks rows copied for me).
+      pricingStore.stampCopied(proposalIds);
+      return;
+    }
     for (const x of next) if (ids.has(x.id)) pricingStore.saveProposal(x, next.map((y) => y.id));
   };
 
@@ -215,7 +263,7 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
   };
 
   const deleteProposal = () => {
-    if (!current) return;
+    if (!current || isTeamView) return;
     // A decided deal counts in achievement numbers: one deliberate confirmation (design T3.7).
     const stage = current.pipeline.stage;
     if ((stage === "Won" || stage === "Lost") && !window.confirm(p.confirmDecidedDelete)) return;
@@ -289,7 +337,7 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
           // proposals, so the toggles render whenever ANY pipeline data exists.
           proposals.length > 0 || externals.length > 0 ? (
             <>
-              {proposals.length > 0 && (
+              {(proposals.length > 0 || teamProposals.length > 0) && (
               <Select value={currentId ?? undefined} onValueChange={(id) => { setCurrentId(id); setMode("edit"); }}>
                 <SelectTrigger className="h-8 w-52" aria-label={p.switcher} data-testid="proposal-switcher">
                   <SelectValue placeholder={p.switcher} />
@@ -298,6 +346,16 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
                   {proposals.map((x) => (
                     <SelectItem key={x.id} value={x.id}>
                       {x.title || p.untitled} · {dateLabel(x.date)}
+                    </SelectItem>
+                  ))}
+                  {teamProposals.length > 0 && (
+                    <div className="mt-1 border-t border-line-1 px-2 pb-1 pt-1.5 text-[11px] font-medium uppercase tracking-wide text-hni-grey-dark">
+                      {p.teamProposals}
+                    </div>
+                  )}
+                  {teamProposals.map((t) => (
+                    <SelectItem key={t.proposal.id} value={t.proposal.id} data-testid={`team-proposal-${t.proposal.id}`}>
+                      {t.proposal.title || p.untitled} · {t.ownerName}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -588,12 +646,20 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
                   <StatusBadge tone={locked ? "success" : "neutral"}>{locked ? p.sent : p.draft}</StatusBadge>
                 </span>
               </div>
-              {locked && <p className="mt-2 text-[12.5px] text-hni-grey-dark" data-testid="locked-hint">{p.sentLocked}</p>}
+              {isTeamView ? (
+                <p className="mt-2 text-[12.5px] font-medium text-hni-grey-dark" data-testid="team-readonly-banner">
+                  {p.teamReadOnly.replace("{name}", teamEntry?.ownerName ?? "")}
+                </p>
+              ) : (
+                locked && <p className="mt-2 text-[12.5px] text-hni-grey-dark" data-testid="locked-hint">{p.sentLocked}</p>
+              )}
               <div className="mt-3 flex flex-wrap gap-2 border-t border-line-1 pt-3">
+                {!isTeamView && (
                 <Button variant="outline" size="sm" data-testid="duplicate" onClick={duplicateProposal}>
                   <Copy className="size-4" aria-hidden />
                   {p.duplicate}
                 </Button>
+                )}
                 {!locked && (
                   <Button variant="outline" size="sm" data-testid="mark-sent" onClick={markSent}>
                     <CheckCheck className="size-4" aria-hidden />
@@ -621,6 +687,7 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
                   <FileSpreadsheet className="size-4" aria-hidden />
                   {p.downloadCosting}
                 </Button>
+                {!isTeamView && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -631,6 +698,7 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
                   <Trash2 className="size-4" aria-hidden />
                   {p.deleteProposal}
                 </Button>
+                )}
               </div>
             </section>
 

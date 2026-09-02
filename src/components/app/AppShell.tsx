@@ -20,7 +20,7 @@ const navItems: NavItem[] = [
   { key: "admin", icon: Settings, ready: false, current: false },
 ];
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({ children, headerExtra }: { children: ReactNode; headerExtra?: ReactNode }) {
   const { t, lang, setLang } = useI18n();
   const [open, setOpen] = useState(false);
 
@@ -88,7 +88,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Menu className="size-5" aria-hidden />
           </Button>
           <img src={asset("brand/logo-primary.svg")} alt={t.app} className="md:hidden ms-2 h-5 w-auto" />
-          <div className="ms-auto">
+          <div className="ms-auto flex items-center gap-2">
+            {headerExtra}
             <Button variant="outline" size="sm" className="h-10 md:h-8" onClick={() => setLang(lang === "en" ? "ar" : "en")} aria-label={t.lang.label}>
               <Languages className="size-4" aria-hidden />
               <span>{t.lang.switch}</span>

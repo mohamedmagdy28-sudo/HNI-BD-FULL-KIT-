@@ -34,10 +34,25 @@ export type LoadResult = {
   settings: Settings;
   /** Ids whose stored JSON failed to parse; surfaced for recovery, never fatal. */
   corruptIds: string[];
+  /**
+   * Cloud mode only: teammates' proposals (design: accounts-supabase.md).
+   * A SEPARATE surface — never merged into `proposals`, never fed to
+   * pipeline math (their deals arrive via the shared pipeline channel).
+   * localStorage mode omits it.
+   */
+  teamProposals?: Array<{ proposal: Proposal; ownerId: string; ownerName: string }>;
 };
 
 export interface PricingStore {
   loadAll(): LoadResult;
+  /**
+   * Cloud-mode optional methods (SupabaseStore implements them; localStorage
+   * mode omits them and the screen falls back to its historic write paths).
+   */
+  updateJourney?(proposal: Proposal, patch: Partial<import("./types").PipelineInfo>): void;
+  updateTeamJourney?(proposalId: string, journey: import("./types").PipelineInfo): void;
+  stampCopied?(rowIds: string[]): void;
+  hasPending?(): boolean;
   /** Returns false when the write failed (quota, disabled storage). */
   saveProposal(proposal: Proposal, order: string[]): boolean;
   deleteProposal(id: string, order: string[]): boolean;
