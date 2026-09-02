@@ -62,7 +62,7 @@ Supersedes: adjusts docs/designs/desktop-packaging.md sequencing (desktop postpo
 
 ## Not in scope
 
-- Roles-v2 (manager/member): designed and reviewed this session, deferred by the symmetric-visibility choice. When wanted: add `role` to profiles, a `SECURITY DEFINER is_manager()` helper called as an initplan (avoids RLS recursion), and tighten the proposals SELECT policy to `owner = auth.uid() or (select is_manager())`. No client rebuild.
+- Roles-v2 (manager/member): ACTIVATED 2026-09-03 via supabase/upgrade-roles.sql (user request: new members must not see existing members' proposals). Magdy + Heba = manager (mutual visibility unchanged); new accounts default to member. When wanted: add `role` to profiles, a `SECURITY DEFINER is_manager()` helper called as an initplan (avoids RLS recursion), and tighten the proposals SELECT policy to `owner = auth.uid() or (select is_manager())`. No client rebuild.
 - A flag/comment channel on team proposals (the predicted next request — review happens by conversation in v1).
 - Per-deal ACLs, admin UI.
 - Offboarding beyond the dashboard: deleting an auth user cascades away their proposals and pipeline rows by design; archiving a leaver's book is a future feature (export their backup first).
