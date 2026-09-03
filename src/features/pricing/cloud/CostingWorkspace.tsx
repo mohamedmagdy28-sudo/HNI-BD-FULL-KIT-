@@ -14,7 +14,7 @@ import { StatusBadge } from "@/components/app/StatusBadge";
 import { useToast } from "@/hooks/use-toast";
 import { formatCurrency, useI18n } from "@/lib/i18n";
 import { debounce } from "../store";
-import { boqTotals, newBoqLine, penHolder, type BoqLine, type BoqRecord } from "./boq";
+import { boqTotals, canEditLines, lineAdderName, newBoqLine, type BoqLine, type BoqRecord } from "./boq";
 import type { SupabaseStore } from "./supabaseStore";
 
 export function CostingWorkspace({ store }: { store: SupabaseStore }) {
@@ -43,11 +43,9 @@ export function CostingWorkspace({ store }: { store: SupabaseStore }) {
   }, [store, toast, p]);
 
   const current = boqs.find((b) => b.proposalId === currentId) ?? null;
-  const myTurn = current != null && penHolder(current) === myId;
-  const canEdit =
-    current != null &&
-    myTurn &&
-    ((current.status === "draft" && myOrigin === "pt") || (current.status === "pm_review" && myOrigin === "pm"));
+  // Amended (user direction): both assignees edit during draft AND pm_review;
+  // the stage gates only the HANDOFF buttons, not the lines.
+  const canEdit = current != null && canEditLines(current, myId);
 
   const save = useMemo(
     () =>
@@ -114,13 +112,13 @@ export function CostingWorkspace({ store }: { store: SupabaseStore }) {
           </StatusBadge>
         </span>
         <div className="ms-auto flex gap-2">
-          {canEdit && current.status === "draft" && (
+          {canEdit && current.status === "draft" && myOrigin === "pt" && (
             <Button size="sm" data-testid="boq-to-pm" onClick={() => void handoff("pm_review")}>
               <CheckCheck className="size-4" aria-hidden />
               {p.boqSendToPm}
             </Button>
           )}
-          {canEdit && current.status === "pm_review" && (
+          {canEdit && current.status === "pm_review" && myOrigin === "pm" && (
             <>
               <Button variant="outline" size="sm" data-testid="boq-return" onClick={() => void handoff("draft")}>
                 <ArrowLeft className="size-4 rtl:rotate-180" aria-hidden />
@@ -182,7 +180,9 @@ export function CostingWorkspace({ store }: { store: SupabaseStore }) {
                           }
                           className="h-8 border-transparent bg-transparent"
                         />
-                        {line.origin === "pm" && <StatusBadge tone="info">{p.boqOpsBadge}</StatusBadge>}
+                        <StatusBadge tone={line.origin === "pm" ? "info" : "neutral"}>
+                          {lineAdderName(line.origin, current, (id) => store.profiles.find((x) => x.id === id)?.displayName ?? "—")}
+                        </StatusBadge>
                       </span>
                     </td>
                     <td className="px-2 py-1">

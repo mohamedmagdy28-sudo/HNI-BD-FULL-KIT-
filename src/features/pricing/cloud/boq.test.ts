@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   boqTotals,
+  canEditLines,
+  lineAdderName,
   importBoqLines,
   isDeliveryRole,
   penHolder,
@@ -151,5 +153,34 @@ describe("boqTotals / penHolder / roles", () => {
     expect(isDeliveryRole("member")).toBe(false);
     expect(isDeliveryRole("manager")).toBe(false);
     expect(isDeliveryRole(null)).toBe(false);
+  });
+});
+
+describe("canEditLines (amended: both assignees pre-ready, owner always)", () => {
+  it("both assignees edit during draft and pm_review", () => {
+    for (const status of ["draft", "pm_review"] as const) {
+      expect(canEditLines(boq({ status }), "pt")).toBe(true);
+      expect(canEditLines(boq({ status }), "pm")).toBe(true);
+    }
+  });
+
+  it("assignees lose the pen at ready/imported; owner keeps it always", () => {
+    for (const status of ["ready", "imported"] as const) {
+      expect(canEditLines(boq({ status }), "pt")).toBe(false);
+      expect(canEditLines(boq({ status }), "pm")).toBe(false);
+      expect(canEditLines(boq({ status }), "bd")).toBe(true);
+    }
+  });
+
+  it("strangers never edit", () => {
+    expect(canEditLines(boq({ status: "draft" }), "someone-else")).toBe(false);
+  });
+});
+
+describe("lineAdderName", () => {
+  it("maps origin to the assignee's display name", () => {
+    const names = (id: string | null) => (id === "pt" ? "Lina" : id === "pm" ? "Omar" : "—");
+    expect(lineAdderName("pt", boq(), names)).toBe("Lina");
+    expect(lineAdderName("pm", boq(), names)).toBe("Omar");
   });
 });

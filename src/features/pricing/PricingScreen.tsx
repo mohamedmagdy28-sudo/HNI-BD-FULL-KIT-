@@ -17,6 +17,7 @@ import { PipelineTab } from "./PipelineTab";
 import { SummaryPanel } from "./SummaryPanel";
 import { customTermsPageCount, hasCustomTerms, serializeStandardTerms } from "./customTerms";
 import { seedContext, seedLines } from "./cloud/boq";
+import { BoqView } from "./cloud/BoqView";
 import type { SupabaseStore } from "./cloud/supabaseStore";
 import { TERMS_PAGE_1, TERMS_PAGE_2 } from "./template";
 import { fileToLogoDataUrl } from "./logo";
@@ -59,6 +60,7 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
   const cloudStore = "createBoq" in pricingStore ? (pricingStore as SupabaseStore) : null;
   const [boqs, setBoqs] = useState(cloudStore?.boqs ?? []);
   const [costingDrawer, setCostingDrawer] = useState(false);
+  const [boqViewOpen, setBoqViewOpen] = useState(false);
   const [ptPick, setPtPick] = useState("");
   const [pmPick, setPmPick] = useState("");
   const [includeClient, setIncludeClient] = useState(true);
@@ -737,6 +739,17 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
                           {p.boqChip.replace("{status}", p.boqStatusLabels[boq.status])}
                         </StatusBadge>
                       </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-[12.5px]"
+                        data-testid="view-boq"
+                        aria-pressed={boqViewOpen}
+                        onClick={() => setBoqViewOpen(!boqViewOpen)}
+                      >
+                        <Eye className="size-3.5" aria-hidden />
+                        {p.boqViewTitle}
+                      </Button>
                       {boq.status === "ready" && !locked && (
                         <Button size="sm" data-testid="import-boq" onClick={importBoq}>
                           <Download className="size-4" aria-hidden />
@@ -768,6 +781,10 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
                 </Button>
                 )}
               </div>
+              {boqViewOpen && cloudStore && (() => {
+                const boq = boqs.find((b) => b.proposalId === current.id);
+                return boq ? <BoqView boq={boq} profiles={cloudStore.profiles} /> : null;
+              })()}
               {costingDrawer && cloudStore && !isTeamView && (
                 <div className="mt-3 flex flex-wrap items-end gap-3 rounded-md border border-line-1 bg-surface-1 p-3" data-testid="costing-drawer">
                   <label className="w-44">

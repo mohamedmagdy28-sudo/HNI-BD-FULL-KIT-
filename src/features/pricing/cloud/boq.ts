@@ -147,3 +147,26 @@ export function penHolder(boq: BoqRecord): string | null {
   if (boq.status === "pm_review") return boq.pmAssignee;
   return boq.owner;
 }
+
+/**
+ * Line editing (amended 2026-09-03, user direction): BOTH assignees edit
+ * during draft and pm_review; the owner edits at any status. Attribution
+ * (origin + names) shows who added what. Status transitions keep their
+ * per-role gates — this opens the lines, not the handoffs.
+ */
+export function canEditLines(boq: BoqRecord, userId: string): boolean {
+  if (userId === boq.owner) return true;
+  return (
+    (boq.status === "draft" || boq.status === "pm_review") &&
+    (userId === boq.ptAssignee || userId === boq.pmAssignee)
+  );
+}
+
+/** Display name of the person a line's origin maps to. */
+export function lineAdderName(
+  origin: "pt" | "pm",
+  boq: BoqRecord,
+  nameOf: (id: string | null) => string,
+): string {
+  return origin === "pt" ? nameOf(boq.ptAssignee) : nameOf(boq.pmAssignee);
+}
