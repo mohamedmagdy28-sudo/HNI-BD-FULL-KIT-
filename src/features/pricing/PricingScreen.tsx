@@ -307,16 +307,27 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
     setStorageError(!pricingStore.saveSettings(nextSettings));
   };
 
+  const deleteProposalById = (id: string, fromDocuments: boolean) => {
+    const target = proposals.find((x) => x.id === id);
+    if (!target) return;
+    // A decided deal counts in achievement numbers: one deliberate confirmation (design T3.7).
+    const stage = target.pipeline.stage;
+    if (stage === "Won" || stage === "Lost") {
+      if (!window.confirm(p.confirmDecidedDelete)) return;
+    } else if (fromDocuments && !window.confirm(p.confirmDeleteSent)) {
+      // The Documents tab is the sent archive: deleting erases the quoted record.
+      return;
+    }
+    const next = proposals.filter((x) => x.id !== id);
+    setProposals(next);
+    if (currentId === id) setCurrentId(next[0]?.id ?? null);
+    if (!fromDocuments) setMode("edit");
+    pricingStore.deleteProposal(id, next.map((x) => x.id));
+  };
+
   const deleteProposal = () => {
     if (!current || isTeamView) return;
-    // A decided deal counts in achievement numbers: one deliberate confirmation (design T3.7).
-    const stage = current.pipeline.stage;
-    if ((stage === "Won" || stage === "Lost") && !window.confirm(p.confirmDecidedDelete)) return;
-    const next = proposals.filter((x) => x.id !== current.id);
-    setProposals(next);
-    setCurrentId(next[0]?.id ?? null);
-    setMode("edit");
-    pricingStore.deleteProposal(current.id, next.map((x) => x.id));
+    deleteProposalById(current.id, false);
   };
 
   const exportBackup = () => {
@@ -535,6 +546,7 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
             const target = proposals.find((x) => x.id === id);
             if (target) void downloadCosting(target);
           }}
+          onDeleteProposal={(id) => deleteProposalById(id, true)}
         />
       )}
 

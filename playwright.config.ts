@@ -14,12 +14,15 @@ export default defineConfig({
   expect: { timeout: 5_000 },
   reporter: [["list"], ["html", { open: "never" }]],
   webServer: {
-    command: "npm run dev -- --port 5173",
-    url: "http://localhost:5173",
-    reuseExistingServer: !process.env.CI,
+    // Hermetic: own port + Supabase env EMPTIED so e2e always exercises
+    // localStorage mode, regardless of what any dev server (possibly
+    // cloud-configured via .env) is doing on 5173.
+    command: "VITE_SUPABASE_URL= VITE_SUPABASE_ANON_KEY= npm run dev -- --port 5199 --strictPort",
+    url: "http://localhost:5199",
+    reuseExistingServer: false,
   },
   use: {
-    baseURL: process.env.E2E_BASE_URL ?? "http://localhost:5173",
+    baseURL: process.env.E2E_BASE_URL ?? "http://localhost:5199",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },

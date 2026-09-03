@@ -628,3 +628,24 @@ test("long custom terms paginate without overflowing any page", async ({ page },
   });
   expect(overflows).toEqual([]);
 });
+
+test("Documents: delete a sent proposal behind a confirmation", async ({ page }, testInfo) => {
+  const lang = langFromProject(testInfo.project.name);
+  await gotoWithLanguage(page, "/", lang);
+  await createProposalWithProgram(page);
+  await page.getByTestId("client-name").fill("SGS");
+  await page.getByTestId("mark-sent").click();
+  await page.getByTestId("documents-toggle").click();
+  const row = page.locator("[data-testid^='document-row-']").first();
+  await expect(row).toBeVisible();
+
+  // Declining the confirm keeps the document.
+  page.once("dialog", (d) => void d.dismiss());
+  await page.locator("[data-testid^='delete-document-']").first().click();
+  await expect(page.locator("[data-testid^='document-row-']")).toHaveCount(1);
+
+  // Accepting deletes it; the archive shows its empty state.
+  page.once("dialog", (d) => void d.accept());
+  await page.locator("[data-testid^='delete-document-']").first().click();
+  await expect(page.locator("[data-testid^='document-row-']")).toHaveCount(0);
+});

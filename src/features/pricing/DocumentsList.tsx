@@ -1,4 +1,4 @@
-import { FileText, Calculator, FileSpreadsheet } from "lucide-react";
+import { FileText, Calculator, FileSpreadsheet, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/app/States";
 import { StatusBadge } from "@/components/app/StatusBadge";
@@ -14,6 +14,8 @@ type Props = {
   onOpenCosting: (id: string) => void;
   /** Downloads the internal costing workbook for one sent proposal. */
   onDownloadCosting: (id: string) => void;
+  /** Deletes a sent proposal (confirmed upstream; decided deals get the stronger gate). */
+  onDeleteProposal: (id: string) => void;
 };
 
 /**
@@ -21,7 +23,7 @@ type Props = {
  * it from data reproduces the exact document that was quoted; no file bytes
  * are stored. Newest first by sentAt.
  */
-export function DocumentsList({ documents, onOpenDocument, onOpenCosting, onDownloadCosting }: Props) {
+export function DocumentsList({ documents, onOpenDocument, onOpenCosting, onDownloadCosting, onDeleteProposal }: Props) {
   const { t, locale } = useI18n();
   const p = t.pricing;
 
@@ -90,6 +92,16 @@ export function DocumentsList({ documents, onOpenDocument, onOpenCosting, onDown
                     >
                       <FileText className="size-3.5" aria-hidden />
                       {p.docsOpenDocument}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-hni-grey-mid hover:text-[color:var(--status-danger-fg)]"
+                      aria-label={p.deleteProposal}
+                      data-testid={`delete-document-${proposal.id}`}
+                      onClick={() => onDeleteProposal(proposal.id)}
+                    >
+                      <Trash2 className="size-3.5" aria-hidden />
                     </Button>
                   </div>
                 </td>
