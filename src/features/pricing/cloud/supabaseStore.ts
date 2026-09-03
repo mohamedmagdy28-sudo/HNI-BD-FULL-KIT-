@@ -37,9 +37,11 @@ import {
   type Targets,
 } from "../types";
 import type { LoadResult, PricingStore } from "../store";
+import { importBoqLines, type AppRole, type BoqContext, type BoqLine, type BoqRecord, type BoqStatus } from "./boq";
 
 export type TeamProposal = { proposal: Proposal; ownerId: string; ownerName: string };
 export type CloudStatus = "saving" | "saved" | "error";
+export type ProfileEntry = { id: string; displayName: string; role: AppRole };
 
 /** Pseudo-external ids for teammates' pipeline rows (kept out of `proposals`). */
 export const TEAM_ROW_PREFIX = "team:";
@@ -183,7 +185,37 @@ type Snapshot = {
   externalDeals: ExternalDeal[];
   settings: Settings;
   corruptIds: string[];
+  /** This account's role; drives the AuthGate workspace routing. */
+  role: AppRole;
+  /** BOQ records visible to me (owner, assignee, or manager oversight). */
+  boqs: BoqRecord[];
+  /** All profiles (names + roles) — assignee dropdowns and owner labels. */
+  profiles: ProfileEntry[];
 };
+
+type BoqRow = {
+  proposal_id: string;
+  owner: string;
+  pt_assignee: string | null;
+  pm_assignee: string | null;
+  status: BoqStatus;
+  context: BoqContext;
+  lines: BoqLine[];
+  rev: number;
+};
+
+function rowToBoq(r: BoqRow): BoqRecord {
+  return {
+    proposalId: r.proposal_id,
+    owner: r.owner,
+    ptAssignee: r.pt_assignee,
+    pmAssignee: r.pm_assignee,
+    status: r.status,
+    context: r.context ?? { title: "", programs: [] },
+    lines: Array.isArray(r.lines) ? r.lines : [],
+    rev: r.rev,
+  };
+}
 
 type CloudExportPayload = {
   version: 3;
@@ -223,19 +255,29 @@ export class SupabaseStore implements PricingStore {
   }
 
   private static async fetchSnapshot(client: SupabaseClient, userId: string): Promise<Snapshot> {
-    const [proposalsRes, rowsRes, externalsRes, teamRes, userRes, profilesRes, copiesRes] = await Promise.all([
+    const [proposalsRes, rowsRes, externalsRes, teamRes, userRes, profilesRes, copiesRes, boqsRes] = await Promise.all([
       client.from("proposals").select("id, owner, data, sort_index").order("sort_index"),
       client.from("pipeline_rows").select("*"),
       client.from("external_deals").select("id, data"),
       client.from("team_settings").select("targets").eq("id", SETTINGS_ROW_ID).maybeSingle(),
       client.from("user_settings").select("data").eq("user_id", userId).maybeSingle(),
-      client.from("profiles").select("id, display_name"),
+      client.from("profiles").select("id, display_name, role"),
       client.from("copies").select("row_id, copied_at").eq("user_id", userId),
+      client.from("boqs").select("*"),
     ]);
+    // The boqs table exists only after upgrade-boq.sql: its absence degrades
+    // to an empty feature, never a boot failure.
     const firstError = [proposalsRes, rowsRes, externalsRes, teamRes, userRes, profilesRes, copiesRes].find((r) => r.error);
     if (firstError?.error) throw new Error(firstError.error.message);
+    const boqs = boqsRes.error ? [] : ((boqsRes.data ?? []) as BoqRow[]).map(rowToBoq);
 
-    const names = new Map<string, string>((profilesRes.data ?? []).map((r) => [r.id as string, r.display_name as string]));
+    const profiles: ProfileEntry[] = (profilesRes.data ?? []).map((r) => ({
+      id: r.id as string,
+      displayName: r.display_name as string,
+      role: ((r as { role?: string }).role ?? "member") as AppRole,
+    }));
+    const role: AppRole = profiles.find((p) => p.id === userId)?.role ?? "member";
+    const names = new Map<string, string>(profiles.map((r) => [r.id, r.displayName]));
     const rows = new Map<string, PipelineRowRecord>(
       ((rowsRes.data ?? []) as PipelineRowRecord[]).map((r) => [r.proposal_id, r]),
     );
@@ -286,7 +328,7 @@ export class SupabaseStore implements PricingStore {
       targets: { ...DEFAULT_SETTINGS.targets, ...((teamRes.data?.targets ?? {}) as Partial<Targets>) },
     };
 
-    return { proposals, teamProposals, externalDeals, settings, corruptIds };
+    return { proposals, teamProposals, externalDeals, settings, corruptIds, role, boqs, profiles };
   }
 
   /** Re-fetches shared + team data (tab focus / after own writes); own drafts stay untouched. */
@@ -539,6 +581,120 @@ export class SupabaseStore implements PricingStore {
       });
     }
     return this.loadAll();
+  }
+
+  // --------------------------------------------------------------- BOQ relay
+
+  get role(): AppRole {
+    return this.snapshot.role;
+  }
+
+  get sessionUserId(): string {
+    return this.userId;
+  }
+
+  get boqs(): BoqRecord[] {
+    return this.snapshot.boqs;
+  }
+
+  get profiles(): ProfileEntry[] {
+    return this.snapshot.profiles;
+  }
+
+  /** Fired when a BOQ write is rejected (pen moved / rev conflict): the UI refetches + banners. */
+  onBoqConflict: ((proposalId: string) => void) | null = null;
+
+  async createBoq(boq: Omit<BoqRecord, "rev">): Promise<void> {
+    const { error } = await this.client.from("boqs").insert({
+      proposal_id: boq.proposalId,
+      owner: boq.owner,
+      pt_assignee: boq.ptAssignee,
+      pm_assignee: boq.pmAssignee,
+      status: boq.status,
+      context: boq.context,
+      lines: boq.lines,
+    });
+    if (error) throw new Error(error.message);
+    await this.refreshBoqs();
+  }
+
+  /** Server-confirmed rev per BOQ; the CAS source of truth. Seeded at fetch, advanced only by accepted writes. */
+  private boqServerRevs = new Map<string, number>();
+
+  /**
+   * Compare-and-swap on rev, resolved at DISPATCH time inside the per-record
+   * queue (writes serialize, so each write sees the rev its predecessor
+   * confirmed). A zero-row update or trigger rejection = the pen moved:
+   * refetch + surface, never retry.
+   */
+  saveBoqLines(proposalId: string, lines: BoqLine[]): void {
+    this.snapshot.boqs = this.snapshot.boqs.map((b) => (b.proposalId === proposalId ? { ...b, lines } : b));
+    this.enqueue(`boq:${proposalId}`, async () => {
+      const expectedRev =
+        this.boqServerRevs.get(proposalId) ?? this.snapshot.boqs.find((b) => b.proposalId === proposalId)?.rev ?? 0;
+      const { data, error } = await this.client
+        .from("boqs")
+        .update({ lines })
+        .eq("proposal_id", proposalId)
+        .eq("rev", expectedRev)
+        .select("rev");
+      if (error || !data || data.length === 0) {
+        await this.refreshBoqs();
+        this.onBoqConflict?.(proposalId);
+        if (error) throw new Error(error.message);
+        throw new Error("boq rev conflict");
+      }
+      const rev = (data[0] as { rev: number }).rev;
+      this.boqServerRevs.set(proposalId, rev);
+      this.snapshot.boqs = this.snapshot.boqs.map((b) => (b.proposalId === proposalId ? { ...b, rev } : b));
+    });
+  }
+
+  async setBoqStatus(proposalId: string, status: BoqStatus): Promise<void> {
+    const { data, error } = await this.client
+      .from("boqs")
+      .update({ status })
+      .eq("proposal_id", proposalId)
+      .select("rev");
+    if (error || !data || data.length === 0) {
+      await this.refreshBoqs();
+      this.onBoqConflict?.(proposalId);
+      throw new Error(error?.message ?? "status change rejected");
+    }
+    const rev = (data[0] as { rev: number }).rev;
+    this.boqServerRevs.set(proposalId, rev);
+    this.snapshot.boqs = this.snapshot.boqs.map((b) => (b.proposalId === proposalId ? { ...b, status, rev } : b));
+  }
+
+  async updateBoqAssignees(proposalId: string, ptAssignee: string | null, pmAssignee: string | null): Promise<void> {
+    const { error } = await this.client
+      .from("boqs")
+      .update({ pt_assignee: ptAssignee, pm_assignee: pmAssignee })
+      .eq("proposal_id", proposalId);
+    if (error) throw new Error(error.message);
+    await this.refreshBoqs();
+  }
+
+  /**
+   * Owner-side import at status ready: replaces matched programs' cost lines
+   * through the EXISTING owner-only save path, then marks the BOQ imported.
+   */
+  importBoq(proposal: Proposal, boq: BoqRecord, unmatchedSectionName: string, order: string[]): Proposal {
+    const updated = importBoqLines(proposal, boq, unmatchedSectionName);
+    this.saveProposal(updated, order);
+    void this.setBoqStatus(boq.proposalId, "imported").catch(() => {
+      /* conflict handler already refetched */
+    });
+    return updated;
+  }
+
+  async refreshBoqs(): Promise<void> {
+    const res = await this.client.from("boqs").select("*");
+    if (!res.error) {
+      this.snapshot.boqs = ((res.data ?? []) as BoqRow[]).map(rowToBoq);
+      for (const b of this.snapshot.boqs) this.boqServerRevs.set(b.proposalId, b.rev);
+      this.onRemoteRefresh?.();
+    }
   }
 
   // ------------------------------------------------------- one-time migration

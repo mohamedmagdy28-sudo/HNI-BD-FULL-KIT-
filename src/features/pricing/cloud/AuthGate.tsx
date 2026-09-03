@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useI18n } from "@/lib/i18n";
 import { LocalStoragePricingStore } from "../store";
+import { isDeliveryRole } from "./boq";
+import { CostingWorkspace } from "./CostingWorkspace";
 import { SupabaseStore, type CloudStatus } from "./supabaseStore";
 
 type Props = {
@@ -45,6 +47,13 @@ export function AuthGate({ client, children }: Props) {
       const store = await SupabaseStore.create(client, userId);
       storeRef.current = store;
       store.onStatus = setStatus;
+      // Delivery roles route straight to the costing workspace: no pricing
+      // app, and NEVER the migration prompt (design: boq-costing-relay.md —
+      // a delivery browser's stray localStorage must not enter team tables).
+      if (isDeliveryRole(store.role)) {
+        setPhase({ kind: "ready", store });
+        return;
+      }
       // Migration prompt: first login with zero cloud proposals AND local data present.
       const local = new LocalStoragePricingStore().loadAll();
       if (store.isEmpty() && local.proposals.length > 0) setPhase({ kind: "migrate", store });
@@ -223,7 +232,7 @@ export function AuthGate({ client, children }: Props) {
 
   return (
     <AppShell headerExtra={header}>
-      {children(phase.store)}
+      {isDeliveryRole(phase.store.role) ? <CostingWorkspace store={phase.store} /> : children(phase.store)}
       {reLogin && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" data-testid="relogin-modal">
           <div className="w-full max-w-sm rounded-lg border border-line-1 bg-surface-0 p-5">

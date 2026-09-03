@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCheck, Copy, Download, Eye, FilePlus2, Files, FileSpreadsheet, ImagePlus, KanbanSquare, Trash2, Upload, X } from "lucide-react";
+import { CheckCheck, Copy, Download, Eye, FilePlus2, Files, FileSpreadsheet, ImagePlus, KanbanSquare, Trash2, Upload, Users2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,6 +16,8 @@ import { DocumentsList } from "./DocumentsList";
 import { PipelineTab } from "./PipelineTab";
 import { SummaryPanel } from "./SummaryPanel";
 import { customTermsPageCount, hasCustomTerms, serializeStandardTerms } from "./customTerms";
+import { seedContext, seedLines } from "./cloud/boq";
+import type { SupabaseStore } from "./cloud/supabaseStore";
 import { TERMS_PAGE_1, TERMS_PAGE_2 } from "./template";
 import { fileToLogoDataUrl } from "./logo";
 import { debounce, LocalStoragePricingStore, type PricingStore } from "./store";
@@ -53,6 +55,14 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
   /** Cloud mode: teammates' proposals — a SEPARATE surface, never merged into
       `proposals` and never fed to pipeline math (accounts-supabase.md). */
   const [teamProposals, setTeamProposals] = useState(initialLoad.teamProposals ?? []);
+  /** Cloud store with BOQ capability (null in localStorage mode). */
+  const cloudStore = "createBoq" in pricingStore ? (pricingStore as SupabaseStore) : null;
+  const [boqs, setBoqs] = useState(cloudStore?.boqs ?? []);
+  const [costingDrawer, setCostingDrawer] = useState(false);
+  const [ptPick, setPtPick] = useState("");
+  const [pmPick, setPmPick] = useState("");
+  const [includeClient, setIncludeClient] = useState(true);
+  const [seedFromLines, setSeedFromLines] = useState(true);
   const [settings, setSettings] = useState<Settings>(initialLoad.settings);
   const [currentId, setCurrentId] = useState<string | null>(initialLoad.proposals[0]?.id ?? null);
   const [externals, setExternals] = useState<ExternalDeal[]>(initialLoad.externalDeals);
@@ -81,6 +91,7 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
       setExternals(fresh.externalDeals);
       setTeamProposals(fresh.teamProposals ?? []);
       setSettings((prev) => ({ ...prev, targets: fresh.settings.targets }));
+      if (cloudStore) setBoqs(cloudStore.boqs);
     };
     return () => {
       cloud.onRemoteRefresh = null;
@@ -254,6 +265,38 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
     } catch {
       toast({ title: p.exportError, variant: "destructive" });
     }
+  };
+
+  /** BOQ relay (design: boq-costing-relay.md) — BD side. */
+  const sendToCosting = async () => {
+    if (!cloudStore || !current || !ptPick || !pmPick) return;
+    try {
+      await cloudStore.createBoq({
+        proposalId: current.id,
+        owner: cloudStore.sessionUserId,
+        ptAssignee: ptPick,
+        pmAssignee: pmPick,
+        status: "draft",
+        context: seedContext(current, includeClient),
+        lines: seedFromLines ? seedLines(current) : [],
+      });
+      setBoqs(cloudStore.boqs);
+      setCostingDrawer(false);
+      toast({ title: p.boqStatusLabels.draft });
+    } catch {
+      toast({ title: p.exportError, variant: "destructive" });
+    }
+  };
+
+  const importBoq = () => {
+    if (!cloudStore || !current) return;
+    const boq = boqs.find((b) => b.proposalId === current.id);
+    if (!boq || boq.status !== "ready") return;
+    const order = proposals.map((x) => x.id);
+    const updated = cloudStore.importBoq(current, boq, p.boqUnmatchedSection, order);
+    setProposals(proposals.map((x) => (x.id === updated.id ? updated : x)));
+    setBoqs(cloudStore.boqs);
+    toast({ title: p.boqImported });
   };
 
   const updateTargets = (targets: Targets) => {
@@ -678,6 +721,31 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
                   <Eye className="size-4" aria-hidden />
                   {p.clientView}
                 </Button>
+                {cloudStore && !isTeamView && !locked && !boqs.some((b) => b.proposalId === current.id) && (
+                  <Button variant="outline" size="sm" data-testid="send-to-costing" onClick={() => setCostingDrawer(!costingDrawer)}>
+                    <Users2 className="size-4" aria-hidden />
+                    {p.boqSendToCosting}
+                  </Button>
+                )}
+                {cloudStore && (() => {
+                  const boq = boqs.find((b) => b.proposalId === current.id);
+                  if (!boq) return null;
+                  return (
+                    <span className="flex items-center gap-1.5">
+                      <span data-testid="boq-chip">
+                        <StatusBadge tone={boq.status === "ready" ? "success" : "info"}>
+                          {p.boqChip.replace("{status}", p.boqStatusLabels[boq.status])}
+                        </StatusBadge>
+                      </span>
+                      {boq.status === "ready" && !locked && (
+                        <Button size="sm" data-testid="import-boq" onClick={importBoq}>
+                          <Download className="size-4" aria-hidden />
+                          {p.boqImport}
+                        </Button>
+                      )}
+                    </span>
+                  );
+                })()}
                 <Button
                   variant="outline"
                   size="sm"
@@ -700,6 +768,55 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
                 </Button>
                 )}
               </div>
+              {costingDrawer && cloudStore && !isTeamView && (
+                <div className="mt-3 flex flex-wrap items-end gap-3 rounded-md border border-line-1 bg-surface-1 p-3" data-testid="costing-drawer">
+                  <label className="w-44">
+                    <span className="block text-[11px] font-medium uppercase tracking-wide text-hni-grey-dark">{p.boqAssignPt}</span>
+                    <select
+                      className="mt-1 h-8 w-full rounded-md border border-line-1 bg-surface-0 px-2 text-[13px]"
+                      value={ptPick}
+                      data-testid="boq-pt-select"
+                      onChange={(e) => setPtPick(e.target.value)}
+                    >
+                      <option value="">—</option>
+                      {cloudStore.profiles.filter((x) => x.role === "proposals_team").map((x) => (
+                        <option key={x.id} value={x.id}>{x.displayName}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="w-44">
+                    <span className="block text-[11px] font-medium uppercase tracking-wide text-hni-grey-dark">{p.boqAssignPm}</span>
+                    <select
+                      className="mt-1 h-8 w-full rounded-md border border-line-1 bg-surface-0 px-2 text-[13px]"
+                      value={pmPick}
+                      data-testid="boq-pm-select"
+                      onChange={(e) => setPmPick(e.target.value)}
+                    >
+                      <option value="">—</option>
+                      {cloudStore.profiles.filter((x) => x.role === "project_manager").map((x) => (
+                        <option key={x.id} value={x.id}>{x.displayName}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-1.5 pb-1 text-[12.5px] text-hni-grey-dark">
+                    <input type="checkbox" checked={includeClient} onChange={(e) => setIncludeClient(e.target.checked)} />
+                    {p.boqIncludeClient}
+                  </label>
+                  <label className="flex items-center gap-1.5 pb-1 text-[12.5px] text-hni-grey-dark">
+                    <input type="checkbox" checked={seedFromLines} onChange={(e) => setSeedFromLines(e.target.checked)} />
+                    {p.boqSeedLines}
+                  </label>
+                  {cloudStore.profiles.every((x) => x.role !== "proposals_team" && x.role !== "project_manager") && (
+                    <p className="w-full text-[12px] text-hni-grey-dark">{p.boqNoDeliveryUsers}</p>
+                  )}
+                  <span className="ms-auto flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setCostingDrawer(false)}>{p.boqCancel}</Button>
+                    <Button size="sm" disabled={!ptPick || !pmPick} data-testid="boq-create" onClick={() => void sendToCosting()}>
+                      {p.boqCreate}
+                    </Button>
+                  </span>
+                </div>
+              )}
             </section>
 
             <CostTable
