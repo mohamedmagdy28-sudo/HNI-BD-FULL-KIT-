@@ -113,7 +113,7 @@
         }
       ],
       "icon": "electron/icons/icon.ico",
-      "signAndEditExecutable": false
+      "signExecutable": false
     },
     "dmg": {
       "artifactName": "HNI-Pricing-${version}.dmg"
