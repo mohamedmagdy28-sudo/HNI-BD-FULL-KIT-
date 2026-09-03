@@ -281,8 +281,15 @@ export function ClientView({ proposal, result, settings, onSettingsChange, onBac
     } catch {
       /* fonts API unavailable: print anyway */
     }
-    // The app cannot create the file itself; the browser's Save-as-PDF does.
-    // Surface the destination hint, let it paint, then open the dialog.
+    // Desktop shell (design: desktop-packaging.md): one-click save dialog via
+    // printToPDF — no destination-hint toast, no Chrome print dialog.
+    const desktop = (window as { hniDesktop?: { savePdf: (name: string) => Promise<{ ok: boolean }> } }).hniDesktop;
+    if (desktop?.savePdf) {
+      await desktop.savePdf(`${proposal.clientName || "HNI"} - ${proposal.title || "Proposal"}.pdf`);
+      return;
+    }
+    // Web: the browser's Save-as-PDF does the work; surface the destination
+    // hint, let it paint, then open the dialog.
     toast({ title: p.pdfHint });
     await new Promise((resolve) => setTimeout(resolve, 150));
     window.print();

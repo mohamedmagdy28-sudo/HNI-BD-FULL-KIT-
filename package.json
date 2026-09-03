@@ -12,7 +12,9 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:install": "playwright install chromium"
+    "test:e2e:install": "playwright install chromium",
+    "dist:mac": "electron-builder --mac --universal",
+    "dist:win": "electron-builder --win"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
@@ -68,6 +70,8 @@
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.1.0",
     "autoprefixer": "^10.5.4",
+    "electron": "^44.1.1",
+    "electron-builder": "^26.15.3",
     "oxlint": "^1.79.0",
     "postcss": "^8.5.26",
     "tailwindcss": "3.4.1",
@@ -75,5 +79,47 @@
     "typescript": "~6.0.2",
     "vite": "^8.2.2",
     "vitest": "^4.1.11"
+  },
+  "main": "electron/main.cjs",
+  "build": {
+    "appId": "com.hni.pricing",
+    "productName": "HNI Pricing",
+    "files": [
+      "dist/**",
+      "electron/**"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "icon": "electron/icons/icon.icns",
+      "identity": null
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "electron/icons/icon.ico",
+      "signAndEditExecutable": false
+    },
+    "dmg": {
+      "artifactName": "HNI-Pricing-${version}.dmg"
+    },
+    "nsis": {
+      "artifactName": "HNI-Pricing-Setup-${version}.exe"
+    }
   }
 }

@@ -31,3 +31,4 @@ test-results
 playwright-report
 bundle.html
 .github/
+release/
