@@ -9,7 +9,7 @@ import { hasCustomTerms, paginateTerms, parseCustomTerms, type TermsBlock } from
 import type { CalcResult } from "./calc";
 import { fileToLogoDataUrl } from "./logo";
 import { sectionKindLabel, type Proposal, type Settings } from "./types";
-import { BANK_DETAILS, TERMS_PAGE_1, TERMS_PAGE_2, type TermsSection } from "./template";
+import { BANK_DETAILS, TERMS_PAGE_1, TERMS_PAGE_1_AR, TERMS_PAGE_2, TERMS_PAGE_2_AR, type TermsSection } from "./template";
 import "./print.css";
 
 type Props = {
@@ -23,9 +23,11 @@ type Props = {
 
 /**
  * Faithful rebuild of the official HNI Financial Proposal template
- * (6 pages, 13.33in x 7.5in). Page geometry uses physical (not logical)
- * positioning on purpose: the template's art direction does not mirror in
- * Arabic; only text content localizes. Legal terms stay English (template.ts).
+ * (6 pages, 13.33in x 7.5in). Page geometry uses logical positioning (user
+ * direction 2026-09-04): in Arabic the whole document mirrors — headers and
+ * content start from the right, and the standard terms render in Arabic
+ * (template.ts, with an English-prevails note). Bank details stay LTR: IBAN
+ * and SWIFT strings are unreadable mirrored.
  * Printing waits for document.fonts.ready so Tajawal/brand faces reach the PDF.
  */
 
@@ -57,12 +59,13 @@ function DocPage({ children, className = "" }: { children: ReactNode; className?
   return <section className={`doc-page relative overflow-hidden bg-white text-[#404040] ${className}`}>{children}</section>;
 }
 
-/** Footer of every content page: logo bottom-left, quarter-ring bottom-right. */
+/** Footer of every content page: logo at the reading start, quarter-ring at
+    the end (mirrored horizontally in RTL so the arc still hugs its corner). */
 function PageChrome() {
   return (
     <>
-      <img src={asset("brand/logo-primary.svg")} alt="" className="absolute bottom-[0.35in] left-[0.36in] h-[0.55in] w-auto" aria-hidden />
-      <QuarterRing className="absolute bottom-0 right-0 h-[1.36in] w-[1.36in]" />
+      <img src={asset("brand/logo-primary.svg")} alt="" className="absolute bottom-[0.35in] start-[0.36in] h-[0.55in] w-auto" aria-hidden />
+      <QuarterRing className="absolute bottom-0 end-0 h-[1.36in] w-[1.36in] rtl:-scale-x-100" />
     </>
   );
 }
@@ -76,14 +79,14 @@ function SignatureBlock({ clientName, settings }: { clientName: string; settings
   const { t } = useI18n();
   const p = t.pricing;
   return (
-    <div className="absolute bottom-[0.35in] left-[2.89in] right-[1.6in] flex gap-[0.8in] text-[11pt]">
+    <div className="absolute bottom-[0.35in] start-[2.89in] end-[1.6in] flex gap-[0.8in] text-[11pt]">
       <div className="relative flex-1">
         {settings.signatureImage && (
           <img
             src={settings.signatureImage}
             alt={p.signature}
             data-testid="doc-signature"
-            className="absolute bottom-[0.5in] left-[0.15in] h-[0.65in] w-auto max-w-[2.2in] object-contain"
+            className="absolute bottom-[0.5in] start-[0.15in] h-[0.65in] w-auto max-w-[2.2in] object-contain"
           />
         )}
         {settings.stampImage && (
@@ -91,7 +94,7 @@ function SignatureBlock({ clientName, settings }: { clientName: string; settings
             src={settings.stampImage}
             alt={p.stamp}
             data-testid="doc-stamp"
-            className="absolute bottom-[0.28in] left-[2.1in] h-[1.05in] w-auto max-w-[1.4in] object-contain opacity-90"
+            className="absolute bottom-[0.28in] start-[2.1in] h-[1.05in] w-auto max-w-[1.4in] object-contain opacity-90"
           />
         )}
         <div className="mb-[0.45in] border-b border-[#404040]" />
@@ -164,8 +167,8 @@ function CustomTermsPage({
   flushList();
   return (
     <DocPage>
-      <h2 className="absolute left-[0.36in] top-[0.17in] text-[26pt] font-bold text-hni-black">{title}</h2>
-      <div className="absolute left-[0.36in] right-[0.4in] top-[1.1in] text-[10.5pt] leading-[1.45]">{rendered}</div>
+      <h2 className="absolute start-[0.36in] top-[0.17in] text-[26pt] font-bold text-hni-black">{title}</h2>
+      <div className="absolute start-[0.36in] end-[0.4in] top-[1.1in] text-[10.5pt] leading-[1.45]">{rendered}</div>
       <SignatureBlock clientName={clientName} settings={settings} />
       <PageChrome />
     </DocPage>
@@ -187,8 +190,8 @@ function TermsPage({
 }) {
   return (
     <DocPage>
-      <h2 className="absolute left-[0.36in] top-[0.17in] text-[26pt] font-bold text-hni-black">{title}</h2>
-      <div dir="ltr" className="absolute left-[0.36in] right-[0.4in] top-[1.1in] text-left text-[10.5pt] leading-[1.45]">
+      <h2 className="absolute start-[0.36in] top-[0.17in] text-[26pt] font-bold text-hni-black">{title}</h2>
+      <div className="absolute start-[0.36in] end-[0.4in] top-[1.1in] text-start text-[10.5pt] leading-[1.45]">
         {note && <p className="mb-2 text-[9.5pt] italic text-hni-grey-mid">{note}</p>}
         {sections.map((s) => (
           <div key={s.heading} className="mb-3">
@@ -208,7 +211,7 @@ function TermsPage({
 }
 
 export function ClientView({ proposal, result, settings, onSettingsChange, onBack }: Props) {
-  const { t, locale } = useI18n();
+  const { t, locale, lang } = useI18n();
   const p = t.pricing;
   const { toast } = useToast();
   const signatureInputRef = useRef<HTMLInputElement>(null);
@@ -370,9 +373,11 @@ export function ClientView({ proposal, result, settings, onSettingsChange, onBac
         <div id="client-document" data-testid="client-document" className="doc-pages mx-auto w-fit space-y-4">
           {/* Page 1 — Cover: full-bleed skyline art, title block on the light sky area. */}
           <DocPage>
-            <img src={asset("brand/proposal-cover.jpg")} alt="" className="absolute inset-0 h-full w-full object-cover" aria-hidden />
+            {/* The art's light sky area must stay behind the title block, so the
+                photo mirrors with the layout in RTL. */}
+            <img src={asset("brand/proposal-cover.jpg")} alt="" className="absolute inset-0 h-full w-full object-cover rtl:-scale-x-100" aria-hidden />
             {/* Co-brand lockup: HNI mark, thin divider, client logo when provided. */}
-            <div className="absolute left-[0.95in] top-[1.25in] flex items-center gap-[0.22in]">
+            <div className="absolute start-[0.95in] top-[1.25in] flex items-center gap-[0.22in]">
               <img src={asset("brand/logo-primary.svg")} alt={p.docFooter} className="h-[0.75in] w-auto" />
               {proposal.clientLogo && (
                 <>
@@ -388,7 +393,7 @@ export function ClientView({ proposal, result, settings, onSettingsChange, onBac
                 </>
               )}
             </div>
-            <div dir="ltr" className="absolute left-[0.46in] top-[2.85in] w-[7.6in] text-left">
+            <div className="absolute start-[0.46in] top-[2.85in] w-[7.6in] text-start">
               <h1 className="text-[34pt] font-bold leading-tight text-hni-black">{proposal.title}</h1>
               <p className="mt-[0.2in] text-[24pt] font-bold text-hni-magenta">{p.docTitle}</p>
               <p className="mt-[0.08in] text-[15pt] font-bold text-[#404040]">
@@ -404,8 +409,8 @@ export function ClientView({ proposal, result, settings, onSettingsChange, onBac
 
           {/* Page 2 — Financial Breakdown: the generated pricing content. */}
           <DocPage>
-            <h2 className="absolute left-[0.36in] top-[0.3in] text-[26pt] font-bold text-hni-black">{p.docBreakdown}</h2>
-            <div className="absolute left-[0.36in] right-[0.5in] top-[1.25in]">
+            <h2 className="absolute start-[0.36in] top-[0.3in] text-[26pt] font-bold text-hni-black">{p.docBreakdown}</h2>
+            <div className="absolute start-[0.36in] end-[0.5in] top-[1.25in]">
               <table className="w-full border-collapse text-[11pt]">
                 <thead>
                   <tr className="border-b-2 border-hni-black text-[8.5pt] uppercase tracking-wide text-hni-grey-dark">
@@ -513,7 +518,8 @@ export function ClientView({ proposal, result, settings, onSettingsChange, onBac
           </DocPage>
 
           {/* Pages 3-4 — Terms: user-authored custom pages when set, else the
-              standard verbatim English pages. Same rule as the PPT slides. */}
+              standard pages in the document's language (Arabic terms carry the
+              English-prevails note). Same rule as the PPT slides. */}
           {customTermsPages ? (
             customTermsPages.map((blocks, k) => (
               <CustomTermsPage
@@ -526,15 +532,28 @@ export function ClientView({ proposal, result, settings, onSettingsChange, onBac
             ))
           ) : (
             <>
-              <TermsPage title={p.docTerms1} sections={TERMS_PAGE_1} note={p.docLegalEnNote} clientName={proposal.clientName} settings={settings} />
-              <TermsPage title={p.docTerms2} sections={TERMS_PAGE_2} note={p.docLegalEnNote} clientName={proposal.clientName} settings={settings} />
+              <TermsPage
+                title={p.docTerms1}
+                sections={lang === "ar" ? TERMS_PAGE_1_AR : TERMS_PAGE_1}
+                note={p.docLegalEnNote}
+                clientName={proposal.clientName}
+                settings={settings}
+              />
+              <TermsPage
+                title={p.docTerms2}
+                sections={lang === "ar" ? TERMS_PAGE_2_AR : TERMS_PAGE_2}
+                note={p.docLegalEnNote}
+                clientName={proposal.clientName}
+                settings={settings}
+              />
             </>
           )}
 
           {/* Page 5 — Bank details. */}
           <DocPage>
-            <h2 className="absolute left-[0.36in] top-[0.49in] text-[26pt] font-bold text-hni-black">{p.docBank}</h2>
-            <table dir="ltr" className="absolute left-[0.59in] top-[1.7in] w-[7.5in] border-collapse text-left text-[12pt]" data-testid="doc-bank">
+            <h2 className="absolute start-[0.36in] top-[0.49in] text-[26pt] font-bold text-hni-black">{p.docBank}</h2>
+            {/* IBAN/SWIFT stay LTR in both languages; the table anchors to the reading start. */}
+            <table dir="ltr" className="absolute start-[0.59in] top-[1.7in] w-[7.5in] border-collapse text-left text-[12pt]" data-testid="doc-bank">
               <tbody>
                 {BANK_DETAILS.map((row) => (
                   <tr key={row.label} className="border-b border-line-1">
@@ -550,16 +569,16 @@ export function ClientView({ proposal, result, settings, onSettingsChange, onBac
 
           {/* Page 6 — Back cover. */}
           <DocPage>
-            <Ring className="absolute -left-[0.4in] -top-[0.4in] h-[3.2in] w-[3.2in]" />
-            <img src={asset("brand/logo-primary.svg")} alt="" className="absolute right-[0.6in] top-[0.85in] h-[0.8in] w-auto" aria-hidden />
+            <Ring className="absolute -start-[0.4in] -top-[0.4in] h-[3.2in] w-[3.2in]" />
+            <img src={asset("brand/logo-primary.svg")} alt="" className="absolute end-[0.6in] top-[0.85in] h-[0.8in] w-auto" aria-hidden />
             <p className="absolute left-1/2 top-[2.9in] -translate-x-1/2 text-[52pt] font-bold tracking-wide text-hni-black">
               {p.docThankYou}
             </p>
-            <div className="absolute bottom-[0.6in] left-[0.57in]">
+            <div className="absolute bottom-[0.6in] start-[0.57in]">
               <p className="text-[20pt] font-bold text-[#201D1F]">{p.docGetInTouch}</p>
               <p className="mt-[0.15in] text-[12pt] text-[#201D1F]">{p.docCountries}</p>
             </div>
-            <QuarterRing className="absolute bottom-0 right-0 h-[1.36in] w-[1.36in]" />
+            <QuarterRing className="absolute bottom-0 end-0 h-[1.36in] w-[1.36in] rtl:-scale-x-100" />
           </DocPage>
         </div>
       </div>
