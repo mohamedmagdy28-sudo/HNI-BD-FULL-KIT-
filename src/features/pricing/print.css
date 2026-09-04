@@ -11,6 +11,13 @@
   height: 7.5in;
 }
 
+/* The Arabic document is Tajawal everywhere, explicitly: the doc must not
+   depend on inherited app styles for its brand face (user direction
+   2026-09-04, cover included). */
+html[lang="ar"] .doc-page {
+  font-family: "Tajawal", "IBM Plex Sans Arabic", "Segoe UI", sans-serif;
+}
+
 @media screen {
   .doc-page {
     border: 1px solid var(--border-1);

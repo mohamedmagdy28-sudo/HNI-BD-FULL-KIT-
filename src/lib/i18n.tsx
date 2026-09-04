@@ -571,6 +571,13 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     document.documentElement.setAttribute("lang", lang);
     document.documentElement.setAttribute("dir", dir);
     localStorage.setItem(STORAGE_KEY, lang);
+    // Warm every Tajawal weight the moment Arabic is active: the faces are
+    // font-display:swap, so without this a fresh load paints the client
+    // document (cover included) in the system Arabic font until the files
+    // arrive. Preloading turns that flash into a non-event.
+    if (lang === "ar" && "fonts" in document) {
+      for (const w of ["400", "500", "700"]) void document.fonts.load(`${w} 16px Tajawal`, "نص عربي");
+    }
   }, [lang]);
 
   const value = useMemo<Ctx>(
