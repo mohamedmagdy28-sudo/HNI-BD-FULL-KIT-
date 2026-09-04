@@ -37,7 +37,10 @@ export function DocumentsList({ documents, onOpenDocument, onOpenCosting, onDown
 
   return (
     <div className="overflow-hidden rounded-lg border border-line-1 bg-surface-0">
-      <table className="w-full text-[13px]">
+      {/* Horizontal scroll on narrow screens: with overflow-hidden alone the
+          actions column (open / costing / delete) was clipped out of reach. */}
+      <div className="overflow-x-auto">
+      <table className="w-full min-w-[46rem] text-[13px]">
         <thead>
           <tr className="border-b border-line-1 bg-surface-1 text-[11px] uppercase tracking-wide text-hni-grey-dark">
             <th className="px-3 py-2 text-start font-medium">{p.proposalTitle}</th>
@@ -110,6 +113,7 @@ export function DocumentsList({ documents, onOpenDocument, onOpenCosting, onDown
           })}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

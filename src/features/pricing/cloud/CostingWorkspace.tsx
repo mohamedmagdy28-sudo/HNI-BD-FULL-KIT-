@@ -156,13 +156,16 @@ export function CostingWorkspace({ store }: { store: SupabaseStore }) {
                 {money(totals.byProgram.get(program.id) ?? 0)}
               </bdi>
             </div>
-            <table className="w-full text-[13px]">
+            {/* min-w + scroll: same phone fix as CostTable — fixed numeric
+                columns must never squeeze the inputs into clipping digits. */}
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[32rem] text-[13px]">
               <thead>
                 <tr className="border-b border-line-1 text-[11px] uppercase tracking-wide text-hni-grey-dark">
                   <th className="px-3 py-1.5 text-start font-medium">{p.lineLabel}</th>
-                  <th className="w-20 px-2 py-1.5 text-end font-medium">{p.qty}</th>
-                  <th className="w-32 px-2 py-1.5 text-end font-medium">{p.unitRate}</th>
-                  <th className="w-32 px-2 py-1.5 text-end font-medium">{p.subtotal}</th>
+                  <th className="w-16 px-2 py-1.5 text-end font-medium sm:w-20">{p.qty}</th>
+                  <th className="w-24 px-2 py-1.5 text-end font-medium sm:w-32">{p.unitRate}</th>
+                  <th className="w-28 px-2 py-1.5 text-end font-medium sm:w-32">{p.subtotal}</th>
                   <th className="w-16 px-2 py-1.5" />
                 </tr>
               </thead>
@@ -229,6 +232,7 @@ export function CostingWorkspace({ store }: { store: SupabaseStore }) {
                 ))}
               </tbody>
             </table>
+            </div>
             {canEdit && (
               <button
                 type="button"

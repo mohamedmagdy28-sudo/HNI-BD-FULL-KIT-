@@ -119,13 +119,16 @@ export function CostTable({ programs, locked, seedLabels, groupLabel, result, de
             </label>
           </div>
 
-          <table className="w-full text-[13px]">
+          {/* min-w + overflow scroll: on phones the fixed numeric columns would
+              otherwise squeeze the inputs and clip digits (120 read as 12). */}
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[30rem] text-[13px]">
             <thead>
               <tr className="border-b border-line-1 text-[11px] uppercase tracking-wide text-hni-grey-dark">
                 <th className="px-3 py-2 text-start font-medium">{p.lineLabel}</th>
-                <th className="w-24 px-2 py-2 text-end font-medium">{p.qty}</th>
-                <th className="w-32 px-2 py-2 text-end font-medium">{p.unitRate}</th>
-                <th className="w-32 px-3 py-2 text-end font-medium">{p.subtotal}</th>
+                <th className="w-16 px-2 py-2 text-end font-medium sm:w-24">{p.qty}</th>
+                <th className="w-24 px-2 py-2 text-end font-medium sm:w-32">{p.unitRate}</th>
+                <th className="w-28 px-3 py-2 text-end font-medium sm:w-32">{p.subtotal}</th>
                 <th className="w-10 px-1 py-2" />
               </tr>
             </thead>
@@ -204,6 +207,7 @@ export function CostTable({ programs, locked, seedLabels, groupLabel, result, de
               </tr>
             </tbody>
           </table>
+          </div>
           <PhasePricingStrip
             program={program}
             index={index}

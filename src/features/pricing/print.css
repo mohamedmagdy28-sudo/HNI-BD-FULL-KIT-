@@ -53,6 +53,8 @@ html[lang="ar"] .doc-page {
   }
   #client-document.doc-pages {
     width: 13.33in;
+    /* The on-screen scale-to-fit zoom (ClientView) must never reach the PDF. */
+    zoom: 1 !important;
   }
   .doc-page {
     margin: 0 !important;

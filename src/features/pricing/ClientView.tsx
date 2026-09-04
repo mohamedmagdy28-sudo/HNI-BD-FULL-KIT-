@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { asset } from "@/lib/assets";
 import { ArrowLeft, FileDown, ImagePlus, Printer, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -216,8 +216,27 @@ export function ClientView({ proposal, result, settings, onSettingsChange, onBac
   const { toast } = useToast();
   const signatureInputRef = useRef<HTMLInputElement>(null);
   const stampInputRef = useRef<HTMLInputElement>(null);
+  const pagesRef = useRef<HTMLDivElement>(null);
 
   const [exportingLang, setExportingLang] = useState<Lang | null>(null);
+
+  // Scale-to-fit preview on narrow screens: the pages are a fixed 13.33in wide,
+  // so a phone otherwise shows ~30% of a page and the user pans blindly. CSS
+  // zoom rescales layout (unlike transform), and print.css resets it to 1 for
+  // PDF output. Browsers without zoom simply keep the horizontal scroll.
+  useEffect(() => {
+    const el = pagesRef.current;
+    const wrapper = el?.parentElement;
+    if (!el || !wrapper) return;
+    const PAGE_W = 1280; // 13.33in at 96dpi
+    const fit = () => {
+      const scale = Math.min(1, (wrapper.clientWidth - 2) / PAGE_W);
+      el.style.zoom = scale < 1 ? String(scale) : "";
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, []);
 
   const fetchAsDataUrl = async (url: string): Promise<string | null> => {
     try {
@@ -313,7 +332,7 @@ export function ClientView({ proposal, result, settings, onSettingsChange, onBac
           <ArrowLeft className="size-4 rtl:rotate-180" aria-hidden />
           {p.back}
         </Button>
-        <div className="ms-auto flex items-center gap-2" title={p.signatureHint}>
+        <div className="ms-auto flex flex-wrap items-center gap-2" title={p.signatureHint}>
           {(
             [
               { field: "signatureImage", label: p.signature, remove: p.signatureRemove, ref: signatureInputRef, testid: "signature" },
@@ -370,7 +389,7 @@ export function ClientView({ proposal, result, settings, onSettingsChange, onBac
       </div>
 
       <div className="overflow-x-auto">
-        <div id="client-document" data-testid="client-document" className="doc-pages mx-auto w-fit space-y-4">
+        <div ref={pagesRef} id="client-document" data-testid="client-document" className="doc-pages mx-auto w-fit space-y-4">
           {/* Page 1 — Cover: full-bleed skyline art, title block on the light sky area. */}
           <DocPage>
             {/* The art's light sky area must stay behind the title block, so the
