@@ -19,7 +19,7 @@ import { customTermsPageCount, hasCustomTerms, serializeStandardTerms } from "./
 import { seedContext, seedLines } from "./cloud/boq";
 import { BoqView } from "./cloud/BoqView";
 import type { SupabaseStore } from "./cloud/supabaseStore";
-import { TERMS_PAGE_1, TERMS_PAGE_2 } from "./template";
+import { TERMS_PAGE_1, TERMS_PAGE_1_AR, TERMS_PAGE_2, TERMS_PAGE_2_AR } from "./template";
 import { fileToLogoDataUrl } from "./logo";
 import { debounce, LocalStoragePricingStore, type PricingStore } from "./store";
 import {
@@ -43,7 +43,7 @@ import {
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function PricingScreen({ store }: { store?: PricingStore }) {
-  const { t, locale } = useI18n();
+  const { t, locale, lang } = useI18n();
   const p = t.pricing;
   const { toast } = useToast();
 
@@ -881,8 +881,14 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
                   disabled={locked}
                   data-testid="terms-custom"
                   onClick={() => {
+                    // Prefill in the UI language (user direction 2026-09-04):
+                    // Arabic app gets the Arabic standard terms to edit from.
                     if (current.customTerms == null)
-                      updateCurrent({ customTerms: serializeStandardTerms([...TERMS_PAGE_1, ...TERMS_PAGE_2]) });
+                      updateCurrent({
+                        customTerms: serializeStandardTerms(
+                          lang === "ar" ? [...TERMS_PAGE_1_AR, ...TERMS_PAGE_2_AR] : [...TERMS_PAGE_1, ...TERMS_PAGE_2],
+                        ),
+                      });
                   }}
                 >
                   {p.customTermsOption}

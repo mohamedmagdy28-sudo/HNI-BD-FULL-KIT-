@@ -93,10 +93,11 @@ export const MAX_DECK_PROGRAM_ROWS = 8;
 
 const ARABIC_RE = /[؀-ۿݐ-ݿࢠ-ࣿ]/;
 
-function font(lang: "en" | "ar", text?: string): string {
-  // English text keeps the brand Latin face even inside the Arabic deck
-  // (legal terms stay English); Arabic glyphs get Tajawal.
-  if (lang === "ar" && text && ARABIC_RE.test(text)) return "Tajawal";
+function font(_lang: "en" | "ar", text?: string): string {
+  // Text-driven, not deck-driven: Arabic clauses (e.g. Arabic custom terms
+  // exported inside the English deck) must carry Tajawal, or PowerPoint
+  // substitutes an arbitrary Arabic fallback. Latin keeps the brand face.
+  if (text && ARABIC_RE.test(text)) return "Tajawal";
   return "Myriad Pro";
 }
 

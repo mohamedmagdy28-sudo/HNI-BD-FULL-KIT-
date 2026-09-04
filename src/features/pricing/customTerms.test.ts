@@ -9,7 +9,7 @@ import {
   parseCustomTerms,
   serializeStandardTerms,
 } from "./customTerms";
-import { TERMS_PAGE_1, TERMS_PAGE_2 } from "./template";
+import { TERMS_PAGE_1, TERMS_PAGE_1_AR, TERMS_PAGE_2, TERMS_PAGE_2_AR } from "./template";
 
 describe("hasCustomTerms (the single active-predicate)", () => {
   it("null, absent, and whitespace-only are all inactive", () => {
@@ -63,6 +63,21 @@ describe("serializeStandardTerms round-trip (colon-normalized)", () => {
     const text = serializeStandardTerms([{ heading: "Already has one:", items: ["a"] }]);
     expect(text.startsWith("Already has one:\n")).toBe(true);
     expect(text.includes("::")).toBe(false);
+  });
+
+  it("round-trips the Arabic standard terms (prefill for the Arabic UI)", () => {
+    const sections = [...TERMS_PAGE_1_AR, ...TERMS_PAGE_2_AR];
+    const blocks = parseCustomTerms(serializeStandardTerms(sections));
+    const expected = sections.flatMap((s) => [
+      { kind: "heading" as const, text: s.heading.endsWith(":") ? s.heading : `${s.heading}:` },
+      ...s.items.map((item) => ({ kind: "item" as const, text: item })),
+    ]);
+    expect(blocks).toEqual(expected);
+  });
+
+  it("arabic standard terms paginate to 2 pages, like the English ones", () => {
+    const blocks = parseCustomTerms(serializeStandardTerms([...TERMS_PAGE_1_AR, ...TERMS_PAGE_2_AR]));
+    expect(paginateTerms(blocks).length).toBe(2);
   });
 });
 

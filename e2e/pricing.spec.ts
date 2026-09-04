@@ -561,14 +561,16 @@ test("custom terms: prefill, edit, render in client view, badge, lock", async ({
   await createProposalWithProgram(page);
   await page.getByTestId("client-name").fill("Client");
 
-  // Switching to Custom pre-fills the standard terms in the box's format.
+  // Switching to Custom pre-fills the standard terms in the UI language.
   await page.getByTestId("terms-custom").click();
   const box = page.getByTestId("custom-terms-input");
   await expect(box).toBeVisible();
   const prefilled = await box.inputValue();
-  expect(prefilled).toContain("Intellectual Property:");
-  expect(prefilled).toContain("- Standard payment terms: 30 days from invoice date.");
-  await expect(page.getByTestId("custom-terms-pages")).toContainText("2"); // parity with standard
+  expect(prefilled).toContain(lang === "ar" ? "الملكية الفكرية:" : "Intellectual Property:");
+  expect(prefilled).toContain(
+    lang === "ar" ? "- شروط الدفع القياسية: 30 يوماً من تاريخ الفاتورة." : "- Standard payment terms: 30 days from invoice date.",
+  );
+  await expect(page.getByTestId("custom-terms-pages")).toContainText("2"); // parity with standard in both languages
   await expect(page.getByTestId("custom-terms-badge")).toBeVisible();
 
   // Edit one clause; the document renders the edit on branded terms pages.
