@@ -192,7 +192,7 @@ function TermsPage({
     <DocPage>
       <h2 className="absolute start-[0.36in] top-[0.17in] text-[26pt] font-bold text-hni-black">{title}</h2>
       <div className="absolute start-[0.36in] end-[0.4in] top-[1.1in] text-start text-[10.5pt] leading-[1.45]">
-        {note && <p className="mb-2 text-[9.5pt] italic text-hni-grey-mid">{note}</p>}
+        {note && <p className="mb-2 text-[9.5pt] italic text-hni-grey-slate">{note}</p>}
         {sections.map((s) => (
           <div key={s.heading} className="mb-3">
             <p className="mb-1 text-[11.5pt] font-bold">{s.heading}</p>
@@ -351,7 +351,7 @@ export function ClientView({ proposal, result, settings, onSettingsChange, onBac
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7 text-hni-grey-mid hover:text-[color:var(--status-danger-fg)]"
+                    className="h-9 w-9 sm:h-7 sm:w-7 text-hni-grey-slate hover:text-[color:var(--status-danger-fg)]"
                     aria-label={item.remove}
                     data-testid={`${item.testid}-remove`}
                     onClick={() => onSettingsChange({ [item.field]: null })}
@@ -413,7 +413,14 @@ export function ClientView({ proposal, result, settings, onSettingsChange, onBac
               )}
             </div>
             <div className="absolute start-[0.46in] top-[2.85in] w-[7.6in] text-start">
-              <h1 className="text-[34pt] font-bold leading-tight text-hni-black">{proposal.title}</h1>
+              {/* Judge J3: past ~80 chars a 34pt title wraps far enough to push
+                  the subtitles onto the dark skyline; step the size down so
+                  they stay on the light band. */}
+              <h1
+                className={`${proposal.title.length > 80 ? "text-[22pt]" : "text-[34pt]"} font-bold leading-tight text-hni-black`}
+              >
+                {proposal.title}
+              </h1>
               <p className="mt-[0.2in] text-[24pt] font-bold text-hni-magenta">{p.docTitle}</p>
               <p className="mt-[0.08in] text-[15pt] font-bold text-[#404040]">
                 {p.docProposedIn} {proposedIn}

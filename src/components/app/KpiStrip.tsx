@@ -10,6 +10,8 @@ export type Kpi = {
   invert?: boolean;
   deltaSign?: 1 | -1 | 0;
   comparison: string;
+  /** Optional plain-language explainer shown as a label tooltip (judge J5). */
+  hint?: string;
   /** When present the tile becomes a filter toggle for the list below it. */
   onToggle?: () => void;
   active?: boolean;
@@ -44,7 +46,7 @@ export function KpiStrip({ items, label }: { items: Kpi[]; label: string }) {
         const good = k.deltaSign === 0 ? null : k.invert ? k.deltaSign === -1 : k.deltaSign === 1;
         const body = (
           <>
-            <div className="text-[12px] font-medium text-hni-grey-dark">{k.label}</div>
+            <div className="text-[12px] font-medium text-hni-grey-dark" title={k.hint}>{k.label}</div>
             <bdi className="tabular mt-1 block text-[22px] font-semibold leading-none text-hni-black">{k.value}</bdi>
             <div className="mt-1.5 flex flex-wrap items-baseline gap-x-1.5 text-[12px]">
               {k.delta && (

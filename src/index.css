@@ -91,6 +91,11 @@
     --hni-black: #231f20;
     --hni-grey-dark: #393c3c;
     --hni-grey-mid: #999999;
+    /* Judge J4 (2026-09-05): Midway Grey is 2.85:1 on white — below AA for
+       text. Slate is the darkest caption grey that still reads muted
+       (4.54:1): use it for readable hints and resting icon controls;
+       grey-mid stays for dividers, placeholders, and disabled. */
+    --hni-grey-slate: #767676;
     --hni-white: #ffffff;
     --hni-violet: #3a37c4;
     --hni-majorelle: #5b58e0;

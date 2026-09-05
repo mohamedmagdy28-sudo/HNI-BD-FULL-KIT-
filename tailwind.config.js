@@ -18,6 +18,7 @@ module.exports = {
           black: "var(--hni-black)",
           "grey-dark": "var(--hni-grey-dark)",
           "grey-mid": "var(--hni-grey-mid)",
+          "grey-slate": "var(--hni-grey-slate)",
           violet: "var(--hni-violet)",
           majorelle: "var(--hni-majorelle)",
           emerald: "var(--hni-emerald)",

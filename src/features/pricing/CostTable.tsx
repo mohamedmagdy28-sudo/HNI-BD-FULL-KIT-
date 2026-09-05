@@ -99,7 +99,7 @@ export function CostTable({ programs, locked, seedLabels, groupLabel, result, de
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-hni-grey-mid hover:text-[color:var(--status-danger-fg)]"
+                className="h-9 w-9 sm:h-8 sm:w-8 text-hni-grey-slate hover:text-[color:var(--status-danger-fg)]"
                 aria-label={p.removeProgram}
                 onClick={() => onChange(programs.filter((pr) => pr.id !== program.id))}
               >
@@ -172,7 +172,7 @@ export function CostTable({ programs, locked, seedLabels, groupLabel, result, de
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-hni-grey-mid hover:text-[color:var(--status-danger-fg)]"
+                        className="h-9 w-9 sm:h-7 sm:w-7 text-hni-grey-slate hover:text-[color:var(--status-danger-fg)]"
                         aria-label={p.removeLine}
                         onClick={() =>
                           updateProgram(program.id, { costLines: program.costLines.filter((l) => l.id !== line.id) })
@@ -342,7 +342,7 @@ function PhasePricingStrip({
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 text-hni-grey-mid hover:text-[color:var(--status-danger-fg)]"
+            className="h-6 w-6 text-hni-grey-slate hover:text-[color:var(--status-danger-fg)]"
             aria-label={p.phaseReset}
             data-testid={`phase-reset-${index}`}
             onClick={() => onChange({ markupPct: null })}

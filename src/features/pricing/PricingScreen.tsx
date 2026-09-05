@@ -159,7 +159,9 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
   };
 
   const markSent = () => {
-    if (!current || locked) return;
+    // Judge J1: never lock a proposal whose document cannot reproduce the
+    // quote (the schedule section is dropped when invalid).
+    if (!current || locked || !result?.scheduleValid) return;
     const updated = {
       ...current,
       sentAt: new Date().toISOString(),
@@ -671,7 +673,7 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 text-hni-grey-mid hover:text-[color:var(--status-danger-fg)]"
+                            className="h-9 w-9 sm:h-7 sm:w-7 text-hni-grey-slate hover:text-[color:var(--status-danger-fg)]"
                             aria-label={p.clientLogoRemove}
                             data-testid="client-logo-remove"
                             onClick={() => updateCurrent({ clientLogo: null })}
@@ -717,24 +719,39 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
                   {p.duplicate}
                 </Button>
                 )}
+                {/* Judge J1/J2 (2026-09-05): an invalid schedule blocks BOTH
+                    preview and send (a locked document must reproduce what was
+                    quoted), and the disabled state names its reason. A span
+                    carries the tooltip because disabled buttons drop pointer
+                    events. Locked proposals always open (Documents parity). */}
                 {!locked && (
-                  <Button variant="outline" size="sm" data-testid="mark-sent" onClick={markSent}>
-                    <CheckCheck className="size-4" aria-hidden />
-                    {p.markSent}
-                  </Button>
+                  <span title={!result.scheduleValid ? p.scheduleError : undefined}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      data-testid="mark-sent"
+                      disabled={!result.scheduleValid}
+                      onClick={markSent}
+                    >
+                      <CheckCheck className="size-4" aria-hidden />
+                      {p.markSent}
+                    </Button>
+                  </span>
                 )}
-                <Button
-                  size="sm"
-                  data-testid="open-client-view"
-                  disabled={!result.scheduleValid}
-                  onClick={() => {
-                    setClientViewOrigin("edit");
-                    setMode("client");
-                  }}
-                >
-                  <Eye className="size-4" aria-hidden />
-                  {p.clientView}
-                </Button>
+                <span title={!locked && !result.scheduleValid ? p.scheduleError : undefined}>
+                  <Button
+                    size="sm"
+                    data-testid="open-client-view"
+                    disabled={!locked && !result.scheduleValid}
+                    onClick={() => {
+                      setClientViewOrigin("edit");
+                      setMode("client");
+                    }}
+                  >
+                    <Eye className="size-4" aria-hidden />
+                    {p.clientView}
+                  </Button>
+                </span>
                 {cloudStore && !isTeamView && !locked && !boqs.some((b) => b.proposalId === current.id) && (
                   <Button variant="outline" size="sm" data-testid="send-to-costing" onClick={() => setCostingDrawer(!costingDrawer)}>
                     <Users2 className="size-4" aria-hidden />
@@ -785,7 +802,7 @@ export function PricingScreen({ store }: { store?: PricingStore }) {
                   variant="ghost"
                   size="sm"
                   data-testid="delete-proposal"
-                  className="ms-auto text-hni-grey-mid hover:text-[color:var(--status-danger-fg)]"
+                  className="ms-auto text-hni-grey-slate hover:text-[color:var(--status-danger-fg)]"
                   onClick={deleteProposal}
                 >
                   <Trash2 className="size-4" aria-hidden />

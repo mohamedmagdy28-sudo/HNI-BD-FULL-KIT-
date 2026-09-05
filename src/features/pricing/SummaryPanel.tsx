@@ -128,7 +128,7 @@ export function SummaryPanel({ proposal, result, marginFloorPct, locked, onChang
           />
         </label>
       </div>
-      {result.pricingDisabled && <p className="mb-2 text-[12px] text-hni-grey-mid">{p.pricingDisabledHint}</p>}
+      {result.pricingDisabled && <p className="mb-2 text-[12px] text-hni-grey-slate">{p.pricingDisabledHint}</p>}
       {result.hasOverrides && (
         <p className="mb-2 text-[12px] text-hni-grey-dark" data-testid="overrides-note">
           {result.defaultPricePerDay == null && !result.pricingDisabled
@@ -269,7 +269,7 @@ export function SummaryPanel({ proposal, result, marginFloorPct, locked, onChang
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-7 w-7 shrink-0 text-hni-grey-mid hover:text-[color:var(--status-danger-fg)]"
+                    className="h-9 w-9 sm:h-7 sm:w-7 shrink-0 text-hni-grey-slate hover:text-[color:var(--status-danger-fg)]"
                     aria-label={`${p.removeLine} ${item.label}`}
                     onClick={() => onChange({ schedule: proposal.schedule.filter((s) => s.id !== item.id) })}
                   >

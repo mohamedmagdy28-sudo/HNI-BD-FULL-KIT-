@@ -216,7 +216,7 @@ export function AuthGate({ client, children }: Props) {
     <div className="flex items-center gap-2">
       {status && (
         <span
-          className="text-[11.5px] text-hni-grey-mid"
+          className="text-[11.5px] text-hni-grey-slate"
           data-testid="cloud-status"
           style={status === "error" ? { color: "var(--status-danger-fg)" } : undefined}
         >

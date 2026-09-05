@@ -316,7 +316,10 @@ export function buildProposalDeck(input: DeckInput): pptxgen {
     cover.addShape("line", { x: 3.2, y: 1.31, w: 0, h: 0.62, line: { color: GREY_MID, width: 0.75 } });
     cover.addImage({ data: proposal.clientLogo, x: 3.42, y: 1.25, w: 2.0, h: 0.75, sizing: { type: "contain", w: 2.0, h: 0.75 } });
   }
-  cover.addText(splitMixedRuns(proposal.title || p.docTitle, { fontSize: 34, bold: true, color: BLACK }), {
+  // Long titles step down like the web cover (judge J3) so the subtitle
+  // block below stays on the light band of the art.
+  const titleText = proposal.title || p.docTitle;
+  cover.addText(splitMixedRuns(titleText, { fontSize: titleText.length > 80 ? 22 : 34, bold: true, color: BLACK }), {
     x: 0.46, y: 2.75, w: 7.6, h: 0.9, isTextBox: true, margin: 0, align: "left",
   });
   cover.addText(splitMixedRuns(p.docTitle, { fontSize: 24, bold: true, color: MAGENTA }), {

@@ -117,6 +117,7 @@ export function PipelineTab({
     {
       id: "achieved-gp",
       label: p.kpiAchievedGp,
+      hint: p.gpGlossary,
       value: money(totals.achievedGp),
       delta: totals.gpTargetPct != null ? `${totals.gpTargetPct.toFixed(1)}%` : undefined,
       deltaSign: totals.gpTargetPct != null ? (totals.gpTargetPct >= 100 ? 1 : 0) : 0,
@@ -309,7 +310,7 @@ export function PipelineTab({
       <div className="grid gap-3 md:grid-cols-2" data-testid="goal-band">
         {/* Card 1 — GP goal (period-scoped, from computeTotals) */}
         <div className="rounded-lg border border-line-1 bg-surface-0 px-4 py-3" data-testid="goal-card">
-          <div className="text-[12px] font-medium text-hni-grey-dark">{p.goalGp}</div>
+          <div className="text-[12px] font-medium text-hni-grey-dark" title={p.gpGlossary}>{p.goalGp}</div>
           {gpTarget == null ? (
             <div className="mt-2 flex flex-wrap items-center gap-2" data-testid="goal-empty">
               <span className="text-[13px] text-hni-grey-dark">{p.goalSetTarget}</span>
@@ -595,7 +596,7 @@ export function PipelineTab({
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 text-hni-grey-mid hover:text-[color:var(--status-danger-fg)]"
+                        className="h-9 w-9 sm:h-7 sm:w-7 text-hni-grey-slate hover:text-[color:var(--status-danger-fg)]"
                         aria-label={p.deleteDeal}
                         onClick={() => onDeleteExternal(row.id)}
                       >
@@ -612,7 +613,7 @@ export function PipelineTab({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 text-hni-grey-mid hover:text-[color:var(--status-danger-fg)]"
+                          className="h-9 w-9 sm:h-7 sm:w-7 text-hni-grey-slate hover:text-[color:var(--status-danger-fg)]"
                           aria-label={p.removeFromPipeline}
                           data-testid={`remove-pipeline-${row.id}`}
                           onClick={() => {

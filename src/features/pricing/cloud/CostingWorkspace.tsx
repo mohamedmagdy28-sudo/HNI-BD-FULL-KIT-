@@ -220,7 +220,7 @@ export function CostingWorkspace({ store }: { store: SupabaseStore }) {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 text-hni-grey-mid hover:text-[color:var(--status-danger-fg)]"
+                          className="h-9 w-9 sm:h-7 sm:w-7 text-hni-grey-slate hover:text-[color:var(--status-danger-fg)]"
                           aria-label={p.removeLine}
                           onClick={() => updateLines(current.lines.filter((l) => l.id !== line.id))}
                         >

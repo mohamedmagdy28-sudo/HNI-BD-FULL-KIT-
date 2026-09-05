@@ -99,7 +99,7 @@ export function DocumentsList({ documents, onOpenDocument, onOpenCosting, onDown
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 text-hni-grey-mid hover:text-[color:var(--status-danger-fg)]"
+                      className="h-9 w-9 sm:h-7 sm:w-7 text-hni-grey-slate hover:text-[color:var(--status-danger-fg)]"
                       aria-label={p.deleteProposal}
                       data-testid={`delete-document-${proposal.id}`}
                       onClick={() => onDeleteProposal(proposal.id)}
